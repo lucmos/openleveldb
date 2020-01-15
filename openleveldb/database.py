@@ -3,22 +3,31 @@ from time import sleep
 from typing import Any, Iterable, Iterator, Optional, Union
 
 import plyvel
-from openleveldb.client import LevelDBClient
-from openleveldb.dbconnector import LevelDBConnector
-from plyvel._plyvel import PrefixedDB
+from openleveldb.clientconnector import LevelDBClient
+from openleveldb.localconnector import LevelDBLocal
 from tqdm import tqdm
 
 
 class LevelDB:
     def __init__(
-        self, db_path: Optional[Union[str, Path]], server_address: Optional[str] = None,
+        self,
+        db_path: Optional[Union[str, Path]],
+        server_address: Optional[str] = None,
+        dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
     ) -> None:
-        if server_address is not None:
-            self.db = LevelDBClient.get_instance(db_path, server_address)
-        else:
-            self.db = LevelDBConnector.get_instance(db_path=db_path)
 
-    def custom_iterator(
+        self.db_path = db_path
+        self.server_address = server_address
+        self.dbconnector: Union[LevelDBClient, LevelDBLocal]
+
+        if dbconnector is not None:
+            self.dbconnector = dbconnector
+        elif server_address is not None:
+            self.dbconnector = LevelDBClient.get_instance(db_path, server_address)
+        else:
+            self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
+
+    def __call__(
         self, prefixes: bytes = None, starting_by: Optional[str] = None, **kwargs
     ) -> Iterable:
         """
@@ -29,9 +38,7 @@ class LevelDB:
         :param kwargs: additional arguments of plyvel.DB.iterator()
         :returns: the custom iterable
         """
-        return self.db.custom_iterator(
-            prefixes=prefixes, starting_by=starting_by, **kwargs
-        )
+        return self.dbconnector(prefixes=prefixes, starting_by=starting_by, **kwargs)
 
     def __iter__(self) -> Iterator:
         """
@@ -39,7 +46,7 @@ class LevelDB:
 
         :returns: the iterator
         """
-        return iter(self.db)
+        return iter(self.dbconnector)
 
     def __len__(self) -> int:
         """
@@ -49,7 +56,7 @@ class LevelDB:
         :returns: number of elements in the database
         """
         # todo: fix the dblen of prefixed db!
-        return len(self.db)
+        return len(self.dbconnector)
 
     def __setitem__(self, key: Union[str, Iterable[str]], value: Any) -> None:
         """
@@ -60,7 +67,7 @@ class LevelDB:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDB.get_instance(tmpfile)
+            >>> ldb = LevelDB(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -73,7 +80,7 @@ class LevelDB:
                     by the serializer.
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
-        self.db[key] = value
+        self.dbconnector[key] = value
 
     def __getitem__(
         self, key: Union[str, Iterable[Union[str, Ellipsis.__class__]]]
@@ -87,7 +94,7 @@ class LevelDB:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDB.get_instance(tmpfile)
+            >>> ldb = LevelDB(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -99,10 +106,8 @@ class LevelDB:
         It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
         as the actual key:
 
-            >>> a = LevelDB.get_instance(tmpfile)
+            >>> a = LevelDB(tmpfile)
             >>> isinstance(ldb.db, plyvel.DB)
-            True
-            >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
             True
             >>> isinstance(ldb, LevelDB) and isinstance(ldb['prefix', ...], LevelDB)
             True
@@ -111,7 +116,16 @@ class LevelDB:
                     by the serializer. It's possible to specify sub-db with Ellipsis.
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
-        return self.db[key]
+        out = self.dbconnector[key]
+        return (
+            out
+            if not isinstance(out, type(self.dbconnector))
+            else LevelDB(
+                db_path=self.db_path,
+                server_address=self.server_address,
+                dbconnector=out,
+            )
+        )
 
     def __delitem__(self, key: Union[str, Iterable[str]]) -> None:
         """
@@ -121,7 +135,7 @@ class LevelDB:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDB.get_instance(tmpfile)
+            >>> ldb = LevelDB(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
             >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
@@ -130,15 +144,26 @@ class LevelDB:
 
         :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
         """
-        del self.db[key]
+        del self.dbconnector[key]
 
     def __repr__(self) -> str:
-        return repr(self.db)
+        name = self.__class__.__name__
+        path = self.db_path
+        ip = f"'{self.server_address}'" if self.server_address is not None else None
+        return (
+            f"{name}(db_path='{path}', "
+            f"server_address={ip}, "
+            f"dbconnector={self.dbconnector})"
+        )
+
+    def close(self) -> None:
+        self.dbconnector.close()
 
 
 if __name__ == "__main__":
     import doctest
     import tempfile
+
     import numpy as np
 
     # tmpfile = tempfile.mkdtemp()
@@ -154,11 +179,16 @@ if __name__ == "__main__":
             key = f"{x}"
             v = db[key]
 
-        try:
-            for x in tqdm(db, desc="iterating"):
-                pass
-        except NotImplementedError:
-            print(f"Error: {NotImplementedError}")
+        for x in tqdm(range(nu), desc="deleting"):
+            key = f"{x}"
+            del db[key]
+
+        print(f"len(db) ={len(db)}")
+        # try:
+        #     for x in tqdm(db, desc="iterating"):
+        #         pass
+        # except NotImplementedError:
+        #     print(f"Error: {NotImplementedError}")
         print()
 
     print("Testing local LevelDB")

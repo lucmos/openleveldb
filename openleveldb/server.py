@@ -1,15 +1,15 @@
 import http
 import io
+import os
+import sys
 from pathlib import Path
 from typing import Iterable, Optional, Tuple, Union
 
-import orjson
 import plyvel
-from flask import Flask, Response, g, make_response, request, send_file
+from flask import Flask, Response, g, make_response, request
 from openleveldb import serializer
 from openleveldb.serializer import DecodeType
 from openleveldb.utils import get_prefixed_db
-from plyvel._plyvel import PrefixedDB
 
 app = Flask(__name__)
 
@@ -122,13 +122,17 @@ def repr() -> str:
     db = get_prefixed_db(get_db(dbpath), prefixes)
 
     innerdb = f"{db}"
-    if isinstance(db, PrefixedDB):
-        innerdb = f"{innerdb[:-21]}>"
+    # if isinstance(db, PrefixedDB):
+    #     innerdb = f"{innerdb[:-21]}>"
     dbrepr = f"{classname}(path='{dbpath}', db={innerdb})"
 
     response = make_response(dbrepr)
     response.headers.set("Content-Type", "text")
     return response
+
+
+def run(port: int) -> None:
+    app.run(port=port)
 
 
 if __name__ == "__main__":

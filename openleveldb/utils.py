@@ -13,6 +13,8 @@ def get_prefixed_db(db: plyvel.DB, prefixes: Iterable[bytes]) -> plyvel.DB:
     """
 
     for prefix in prefixes:
+        if prefix is Ellipsis:
+            raise TypeError(f"str prefix or key expected, got {type(prefix).__name__}")
         db = db.prefixed_db(prefix)
 
     return db

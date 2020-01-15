@@ -1,75 +1,15 @@
 """
 Automatic conversion to and from bytes
-
-
-Testing conversion from/to plain int and signed int:
-
-    >>> a = 42
-    >>> a_encoded = encode(a)
-    >>> a_encoded[:1]
-    b'i'
-    >>> base64.b64encode(a_encoded)
-    b'aQAAAAAAAAAAAAAAAAAAACo='
-    >>> b = decode(a_encoded)
-    >>> b
-    42
-    >>> a == b
-    True
-
-
-Testing conversion from/to plain strings:
-
-    >>> a = "test in progress... :)"
-    >>> a_encoded = encode(a)
-    >>> a_encoded[:1]
-    b's'
-    >>> a_encoded
-    b'stest in progress... :)'
-    >>> b = decode(a_encoded)
-    >>> b
-    'test in progress... :)'
-    >>> a == b
-    True
-
-
-Testing conversion from/to generic object json-serializable:
-
-    >>> a = {'test1': 3., 'test2': {'inner': 0}}
-    >>> a_encoded = encode(a)
-    >>> a_encoded[:1]
-    b'j'
-    >>> a_encoded
-    b'j{"test1":3.0,"test2":{"inner":0}}'
-    >>> b = decode(a_encoded)
-    >>> b
-    {'test1': 3.0, 'test2': {'inner': 0}}
-    >>> a == b
-    True
-
-
-Testing conversion from/to numpy ndarray:
-
-    >>> import numpy as np
-    >>> a = np.array([[0, 1.13], [1, 42]])
-    >>> a_encoded = encode(a)
-    >>> a_encoded[:1]
-    b'n'
-    >>> base64.b64encode(a_encoded)
-    b'bpNOVU1QWQEAdgB7J2Rlc2NyJzogJzxmOCcsICdmb3J0cmFuX29yZGVyJzogRmFsc2UsICdzaGFwZSc6ICgyLCAyKSwgfSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKAAAAAAAAAAAUrkfhehTyPwAAAAAAAPA/AAAAAAAARUA='
-    >>> b = decode(a_encoded)
-    >>> b
-    array([[ 0.  ,  1.13],
-           [ 1.  , 42.  ]])
-    >>> np.array_equal(a, b)
-    True
-
 """
+import abc
 import base64
+import collections
 import functools
 import json
+import typing
 from enum import Enum
 from io import BytesIO
-from typing import Any, Callable, Iterable, Union
+from typing import Any, Callable, Iterable, Sized, Union
 
 import numpy as np
 import orjson
@@ -287,7 +227,7 @@ def _(blob: bytes) -> Any:
 
 
 def normalize_strings(
-    key_encoder: Callable[[str], bytes], strings: Union[str, Iterable[str]]
+    key_encoder: Callable[[str], bytes], strings: Union[str, typing.Sequence[str]]
 ) -> Iterable[bytes]:
     """
     Normalize an iterable of strings to the correspondent iterable of
@@ -300,14 +240,22 @@ def normalize_strings(
     if strings is None:
         yield None
 
+    if strings is Ellipsis:
+        yield strings
+
     if isinstance(strings, bytes):
         raise TypeError(f"str prefix or key expected, got {type(strings).__name__}")
 
     if isinstance(strings, str):
         strings = [strings]
 
-    for s in strings:
-        if s is Ellipsis:
+    if not isinstance(strings, collections.abc.Sequence):
+        raise TypeError(f"str prefix or key expected, got {type(strings).__name__}")
+
+    num_strings = len(strings)
+
+    for i, s in enumerate(strings):
+        if i == num_strings - 1 and s is Ellipsis:
             yield s
         elif not isinstance(s, str):
             raise TypeError(f"str prefix or key expected, got {type(s).__name__}")

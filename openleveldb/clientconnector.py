@@ -1,3 +1,4 @@
+import functools
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
 from urllib.parse import quote, quote_plus
@@ -9,8 +10,7 @@ import numpy as np
 import orjson
 import plyvel
 from flask import Response
-from openleveldb.dbconnector import LevelDBConnector
-from openleveldb.serializer import DecodeError, decode, encode
+from openleveldb.serializer import DecodeError, decode, encode, normalize_strings
 from plyvel._plyvel import PrefixedDB
 from tqdm import tqdm
 
@@ -105,7 +105,7 @@ class LevelDBClient:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -118,11 +118,16 @@ class LevelDBClient:
                     by the serializer.
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
+        *prefixes, key = normalize_strings(lambda x: x, key)
+
+        if key is Ellipsis:
+            raise TypeError(f"str prefix or key expected, got {type(key).__name__}")
+
         res = requests.post(
             url=self.server_address + "/setitem",
             data=encode(value),
             headers={"Content-Type": "application/octet-stream"},
-            params={"dbpath": self.db_path, "key": key},
+            params={"dbpath": self.db_path, "key": key, "prefixes": prefixes},
         )
         return res
 
@@ -138,7 +143,7 @@ class LevelDBClient:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -150,30 +155,29 @@ class LevelDBClient:
         It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
         as the actual key:
 
-            >>> a = LevelDBConnector.get_instance(tmpfile)
+            >>> a = LevelDBLocal.get_instance(tmpfile)
             >>> isinstance(ldb.db, plyvel.DB)
             True
             >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
             True
-            >>> isinstance(ldb, LevelDBConnector) and isinstance(ldb['prefix', ...], LevelDBConnector)
+            >>> isinstance(ldb, LevelDBLocal) and isinstance(ldb['prefix', ...], LevelDBLocal)
             True
 
         :param key: string or iterable of string to specify prefixes, auto-encoded
                     by the serializer. It's possible to specify sub-db with Ellipsis.
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
-        res = requests.get(
-            url=self.server_address + "/getitem",
-            params={"dbpath": self.db_path, "key": key},
-        )
+        *prefixes, key = normalize_strings(lambda x: x, key)
 
         if key is Ellipsis:
             raise NotImplementedError
 
-        try:
-            return self.value_decoder(res.content)
-        except DecodeError:
-            return None
+        res = requests.get(
+            url=self.server_address + "/getitem",
+            params={"dbpath": self.db_path, "key": key, "prefixes": prefixes},
+        )
+
+        return self.value_decoder(res.content)
 
     def __delitem__(self, key: Union[str, Iterable[str]]) -> Response:
         """
@@ -183,7 +187,7 @@ class LevelDBClient:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
             >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
@@ -192,9 +196,11 @@ class LevelDBClient:
 
         :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
         """
-        res = requests.put(
+        *prefixes, key = normalize_strings(lambda x: x, key)
+
+        res = requests.delete(
             url=self.server_address + "/delitem",
-            params={"dbpath": self.db_path, "key": key},
+            params={"dbpath": self.db_path, "key": key, "prefixes": prefixes},
         )
         return res
 
@@ -205,12 +211,17 @@ class LevelDBClient:
         )
         return res.text
 
+    def __del__(self) -> None:
+        pass
+
 
 if __name__ == "__main__":
 
     db = LevelDBClient.get_instance(
         db_path="azz", server_address="http://127.0.0.1:5000"
     )
+
+    db["_", "_", ...] = "value_bytes1"
 
     nu = 100
     for x in tqdm(range(nu), desc="writing"):

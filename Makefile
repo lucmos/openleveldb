@@ -15,7 +15,7 @@ server:
 ## Start demo
 demo:
 	(export PYTHONPATH="${PYTHONPATH}:openleveldb/"; \
-	poetry run streamlit run openleveldb/demo.py )
+	poetry run streamlit run tests/demo.py )
 
 #################################################################################
 # Self Documenting Commands                                                     #

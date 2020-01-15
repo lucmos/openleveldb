@@ -1,195 +1,6 @@
 """
 Class that wraps the LevelDB plyvel to support dict-like behaviour, with automatic serialization to bytes and
 deserialization from bytes provided by the serialization module
-
-
-TEST BASE KEYSTORE CAPABILITIES
-
-
-Test base retrieval:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> ldb['key'] = 'value_string1'
-    >>> ldb['key']
-    'value_string1'
-    >>> del ldb['key']
-    >>> len(ldb)
-    0
-    >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-    >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
-    'value_string2'
-    >>> del ldb['prefix1', 'prefix2', 'prefix2', 'key']
-    >>> len(ldb)
-    0
-
-
-Test json serialization and missing identifier detection:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> a = {'key1': 10.5, 'key2': [1, 2, {'key3': -1}]}
-    >>> ldb['key'] = a
-    >>> ldb['key']
-    {'key1': 10.5, 'key2': [1, 2, {'key3': -1}]}
-    >>> a == ldb['key']
-    True
-    >>> import orjson
-    >>> ldb['key'] = orjson.dumps(a)
-    >>> ldb['key']
-    Traceback (most recent call last):
-     ...
-    openleveldb.serializer.DecodeError: missing DecodeType identifier in bytes blob
-    >>> ldb['key'] = serializer.encode(a)
-    >>> ldb['key']
-    {'key1': 10.5, 'key2': [1, 2, {'key3': -1}]}
-    >>> del ldb['key']
-    >>> len(ldb)
-    0
-
-
-Test NumPy serialization and missing identifier detection:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], dtype=np.float16)
-    >>> ldb['key'] = a
-    >>> ldb['key']
-    array([[ 1.,  2.,  3.,  4.,  5.],
-           [ 6.,  7.,  8.,  9., 10.]], dtype=float16)
-    >>> np.array_equal(a, ldb['key'])
-    True
-    >>> from openleveldb.serializer import Serializer
-    >>> ldb['key'] = Serializer.ndarray_tobytes(np.array([1, 2, 3]))
-    >>> ldb['key']
-    Traceback (most recent call last):
-     ...
-    openleveldb.serializer.DecodeError: missing DecodeType identifier in bytes blob
-    >>> ldb['key'] = serializer.encode(np.array([1, 2, 3]))
-    >>> ldb['key']
-    array([1, 2, 3])
-    >>> del ldb['key']
-    >>> len(ldb)
-    0
-
-
-Test int serialization and missing identifier detection:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> a = 42
-    >>> ldb['key'] = a
-    >>> ldb['key']
-    42
-    >>> a == ldb['key']
-    True
-    >>> a = -10000
-    >>> ldb['key'] = a
-    >>> ldb['key']
-    -10000
-    >>> a == ldb['key']
-    True
-    >>> ldb['key'] = int.to_bytes(42, length=16, byteorder='big', signed=True)
-    >>> ldb['key']
-    Traceback (most recent call last):
-     ...
-    openleveldb.serializer.DecodeError: missing DecodeType identifier in bytes blob
-    >>> ldb['key'] = serializer.encode(42)
-    >>> ldb['key']
-    42
-    >>> ldb['key'] = int.to_bytes(-10000000000000000000000000000000000000, length=16, byteorder='big', signed=True)
-    >>> ldb['key']
-    Traceback (most recent call last):
-     ...
-    openleveldb.serializer.DecodeError: missing DecodeType identifier in bytes blob
-    >>> ldb['key'] = serializer.encode(-10000000000000000000000000000000000000)
-    >>> ldb['key']
-    -10000000000000000000000000000000000000
-    >>> del ldb['key']
-    >>> len(ldb)
-    0
-
-
-Test string serialization and missing identifier detection:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> a = "just testing some conversions... :)"
-    >>> ldb['key'] = a
-    >>> ldb['key']
-    'just testing some conversions... :)'
-    >>> a == ldb['key']
-    True
-    >>> ldb['key'] = b'value_bytes1'
-    >>> ldb['key']
-    Traceback (most recent call last):
-    openleveldb.serializer.DecodeError: missing DecodeType identifier in bytes blob
-    >>> ldb['key'] = serializer.encode('value_bytes1')
-    >>> ldb['key']
-    'value_bytes1'
-    >>> del ldb['key']
-    >>> len(ldb)
-    0
-
-
-Test prefixes internals:
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> ldb['prefix1', 'prefix2', 'prefix2', 'key_string2'] = 'value_string2'
-    >>> ldb['prefix1prefix2prefix2key_string2'] == ldb['prefix1', 'prefix2', 'prefix2', 'key_string2']
-    True
-    >>> ldb['prefix1', 'prefix2', 'prefix2', 'key_string2']
-    'value_string2'
-    >>> ldb['prefix1prefix2prefix2key_string2'] = 'value_string3'
-    >>> ldb['prefix1prefix2prefix2key_string2'] == ldb['prefix1', 'prefix2', 'prefix2', 'key_string2']
-    True
-    >>> ldb['prefix1', 'prefix2', 'prefix2', 'key_string2']
-    'value_string3'
-    >>> [(x, y) for x, y in ldb]
-    [('prefix1prefix2prefix2key_string2', 'value_string3')]
-    >>> del ldb['prefix1', 'prefix2', 'prefix2', 'key_string2']
-    >>> len(ldb)
-    0
-
-
-Test that key blobs that don't have an identifier throw an error (i.e. they do not get decoded implicitly):
-
-    >>> ldb = LevelDBConnector.get_instance(tmpfile)
-    >>> ldb[b'key_bytes1'] = 'value_bytes1'
-    Traceback (most recent call last):
-    ...
-    TypeError: str prefix or key expected, got bytes
-    >>> ldb['key', b'key_bytes1'] = 'value_bytes1'
-    Traceback (most recent call last):
-    ...
-    TypeError: str prefix or key expected, got bytes
-    >>> ldb[b'key_bytes1', 'key'] = 'value_bytes1'
-    Traceback (most recent call last):
-    ...
-    TypeError: str prefix or key expected, got bytes
-
-    
-Test singleton pattern:
-
-    >>> a = LevelDBConnector(tmpfile)
-    Traceback (most recent call last):
-    RuntimeError: A LevelDB instance for the same db already exists.
-    >>> a = LevelDBConnector.get_instance(tmpfile)
-    >>> tmpfile2 = tempfile.mkdtemp()
-    >>> b = LevelDBConnector(tmpfile2)
-    >>> b = LevelDBConnector(tmpfile2)
-    Traceback (most recent call last):
-    RuntimeError: A LevelDB instance for the same db already exists.
-
-
-Test database retrieval:
-
-    >>> a = LevelDBConnector.get_instance(tmpfile)
-
-    >>> isinstance(ldb, LevelDBConnector)
-    True
-    >>> isinstance(ldb.db, plyvel.DB)
-    True
-    >>> isinstance(ldb['prefix', ...], LevelDBConnector)
-    True
-    >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
-    True
-
 """
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
@@ -202,13 +13,13 @@ from openleveldb.utils import get_prefixed_db
 from plyvel._plyvel import PrefixedDB
 
 
-class LevelDBConnector:
+class LevelDBLocal:
     """
     LevelDB connector
 
     Sample usage:
 
-        >>> ldb = LevelDBConnector.get_instance(tmpfile)
+        >>> ldb = LevelDBLocal.get_instance(tmpfile)
         >>> ldb['key'] = 'value_string1'
         >>> ldb['key']
         'value_string1'
@@ -220,7 +31,7 @@ class LevelDBConnector:
     _instances = {}
 
     @staticmethod
-    def get_instance(db_path: Union[str, Path]) -> "LevelDBConnector":
+    def get_instance(db_path: Union[str, Path]) -> "LevelDBLocal":
         """
         Return a singleton instance of LevelDB for each path
 
@@ -228,9 +39,9 @@ class LevelDBConnector:
         :returns: the LevelDB object
         """
         db_path = Path(db_path)
-        if db_path not in LevelDBConnector._instances:
-            LevelDBConnector._instances[db_path] = LevelDBConnector(db_path)
-        return LevelDBConnector._instances[db_path]
+        if db_path not in LevelDBLocal._instances:
+            LevelDBLocal._instances[db_path] = LevelDBLocal(db_path)
+        return LevelDBLocal._instances[db_path]
 
     def __init__(
         self,
@@ -245,14 +56,16 @@ class LevelDBConnector:
         self.value_encoder, self.value_decoder = value_encoder, value_decoder
 
         self.db_path: Path = Path(db_path) if db_path is not None else None
-        if self.db_path in LevelDBConnector._instances:
-            raise RuntimeError(f"A LevelDB instance for the same db already exists.")
+        if self.db_path in LevelDBLocal._instances:
+            raise RuntimeError(
+                f"{LevelDBLocal._instances[self.db_path]} already exists."
+            )
 
         if db is not None:
             self.db = db
             return
 
-        LevelDBConnector._instances[
+        LevelDBLocal._instances[
             self.db_path
         ] = None  # Ensure the singleton pattern is enforced
 
@@ -263,14 +76,14 @@ class LevelDBConnector:
         self.iter_prefixes: Optional[str, Iterable[str]] = None
         self.iter_starting_by: Optional[str] = None
 
-    def _prefixed_db(self, prefixes: Iterable[bytes]) -> "LevelDBConnector":
+    def _prefixed_db(self, prefixes: Iterable[bytes]) -> "LevelDBLocal":
         """
         Apply all the prefixes (last one included) to obtain the desired prefixed database
 
         :param prefixes: the prefix or the iterable of prefixes to apply
         :returns: the prefixed database
         """
-        return LevelDBConnector(db_path=None, db=get_prefixed_db(self.db, prefixes))
+        return LevelDBLocal(db_path=None, db=get_prefixed_db(self.db, prefixes))
 
     def __call__(
         self,
@@ -343,7 +156,7 @@ class LevelDBConnector:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -357,6 +170,10 @@ class LevelDBConnector:
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
         *prefixes, key = normalize_strings(self.key_encoder, key)
+
+        if key is Ellipsis:
+            raise TypeError(f"str prefix or key expected, got {type(key).__name__}")
+
         ldb = self._prefixed_db(prefixes)
         ldb.db.put(key, self.value_encoder(value))
 
@@ -372,7 +189,7 @@ class LevelDBConnector:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['key']
             'value_string1'
@@ -384,12 +201,12 @@ class LevelDBConnector:
         It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
         as the actual key:
 
-            >>> a = LevelDBConnector.get_instance(tmpfile)
+            >>> a = LevelDBLocal.get_instance(tmpfile)
             >>> isinstance(ldb.db, plyvel.DB)
             True
             >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
             True
-            >>> isinstance(ldb, LevelDBConnector) and isinstance(ldb['prefix', ...], LevelDBConnector)
+            >>> isinstance(ldb, LevelDBLocal) and isinstance(ldb['prefix', ...], LevelDBLocal)
             True
 
         :param key: string or iterable of string to specify prefixes, auto-encoded
@@ -410,7 +227,7 @@ class LevelDBConnector:
         The key may be a single string or an iterable of strings, to specify prefixes.
         The last element is always the key.
 
-            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb = LevelDBLocal.get_instance(tmpfile)
             >>> ldb['key'] = 'value_string1'
             >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
             >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
@@ -425,9 +242,12 @@ class LevelDBConnector:
 
     def __repr__(self) -> str:
         innerdb = f"{self.db}"
-        if isinstance(self.db, PrefixedDB):
-            innerdb = f"{innerdb[:-21]}>"
-        return f"{self.__class__.__name__}(path={self.db_path}, db={innerdb})"
+        # if isinstance(self.db, PrefixedDB):
+        #     innerdb = f"{innerdb[:-21]}>"
+        return f"{self.__class__.__name__}(path='{self.db_path}', db={innerdb})"
+
+    def close(self) -> None:
+        self.db.close()
 
 
 if __name__ == "__main__":
@@ -436,7 +256,3 @@ if __name__ == "__main__":
 
     tmpfile = tempfile.mkdtemp()
     doctest.testmod(extraglobs={"tmpfile": tmpfile})
-    # ldb = LevelDB.get_instance(tmpfile)
-    # ldb["prefix1", "prefix2", "prefix2", "key_string2"] = "value_string2"
-    # ldb["prefix1sprefix2sprefix2key_string2"]
-    # ldb["prefix1", "prefix2", "prefix2", "key_string2"]
