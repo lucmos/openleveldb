@@ -27,8 +27,11 @@ class LevelDB:
         else:
             self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
 
-    def __call__(
-        self, prefixes: bytes = None, starting_by: Optional[str] = None, **kwargs
+    def prefixed_iter(
+        self,
+        prefixes: Optional[Union[str, Iterable[str]]] = None,
+        starting_by: Optional[str] = None,
+        **kwargs,
     ) -> Iterable:
         """
         Builds a custom iterator exploiting the parameters available in plyvel.DB
@@ -38,7 +41,19 @@ class LevelDB:
         :param kwargs: additional arguments of plyvel.DB.iterator()
         :returns: the custom iterable
         """
-        return self.dbconnector(prefixes=prefixes, starting_by=starting_by, **kwargs)
+        return self.dbconnector.prefixed_iter(
+            prefixes=prefixes, starting_by=starting_by, **kwargs
+        )
+
+    def prefixed_len(
+        self,
+        prefixes: Optional[Union[str, Iterable[str]]] = None,
+        starting_by: Optional[str] = None,
+        **kwargs,
+    ) -> int:
+        return self.dbconnector.prefixed_len(
+            prefixes=prefixes, starting_by=starting_by, **kwargs
+        )
 
     def __iter__(self) -> Iterator:
         """

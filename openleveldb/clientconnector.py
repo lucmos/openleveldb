@@ -62,7 +62,7 @@ class LevelDBClient:
         )
         return res.text
 
-    def custom_iterator(
+    def __call__(
         self, prefixes: bytes = None, starting_by: Optional[str] = None, **kwargs
     ) -> Iterable:
         """

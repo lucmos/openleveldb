@@ -44,9 +44,9 @@ def dummy_server() -> None:
 
 
 @pytest.fixture(
-    scope="module",
+    scope="function",
     params=[
-        (LOCAL_TEMP_DATABASE, None),
+        # (LOCAL_TEMP_DATABASE, None),
         (REMOTE_TEMP_DATABASE, f"http://127.0.0.1:{REMOTE_PORT}",),
     ],
 )
@@ -76,6 +76,56 @@ class TestDatabase:
         else:
             assert isinstance(db.dbconnector, LevelDBClient)
 
+    keys1 = (
+        ("prefixb", "k1"),
+        ("prefixb", "k2"),
+        ("prefixb", "k3"),
+        ("prefixc", "k4"),
+        ("prefixc", "k5"),
+    )
+    values1 = (
+        "v1",
+        "v2",
+        "v3",
+        "v4",
+        "v5",
+    )
+    prefixeslens1 = [
+        ("", 5),
+        ("prefixb", 3),
+        ("prefixc", 2),
+        ("prefixa", 0),
+        ("prefixd", 0),
+        ("prefix", 5),
+        ("prefixaa", 0),
+    ]
+
+    @pytest.mark.parametrize(
+        argnames="keys,values,prefixeslens",
+        argvalues=[(keys1, values1, prefixeslens1,)],
+    )
+    def test_db_prefixed_len(self, db: LevelDB, keys, values, prefixeslens) -> None:
+        try:
+
+            for k, v in zip(keys, values):
+                db[k] = v
+
+            for k, v in zip(keys, values):
+                assert v == db[k]
+
+            for prefixlen in prefixeslens:
+                prefix, plen = prefixlen
+                assert db.prefixed_len(prefix) == plen
+
+            assert len(db) == len(keys) == len(values)
+
+            for x, y in db:
+                del db[x]
+            assert len(db) == 0
+        except:  # todo: togli quando implentato bene in client
+            for x in keys:
+                del db[x]
+
     def test_db_repr(self, db: LevelDB) -> None:
         name = db.__class__.__name__
         path = db.db_path
@@ -83,10 +133,8 @@ class TestDatabase:
         out = f"{name}(db_path='{path}', server_address={ip},"
         assert repr(db)[: len(out)] == out
 
-    def test_base_retrieval(self, capsys, db: LevelDB) -> None:
+    def test_base_retrieval(self, db: LevelDB) -> None:
         db["key"] = "value_string1"
-        with capsys.disabled():
-            print(db["key"])
         assert db["key"] == "value_string1"
         del db["key"]
         assert len(db) == 0

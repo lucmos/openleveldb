@@ -83,9 +83,13 @@ class LevelDBLocal:
         :param prefixes: the prefix or the iterable of prefixes to apply
         :returns: the prefixed database
         """
-        return LevelDBLocal(db_path=None, db=get_prefixed_db(self.db, prefixes))
+        return LevelDBLocal(
+            db_path=None,
+            db=get_prefixed_db(self.db, prefixes) if prefixes is not None else self.db,
+        )
 
-    def __call__(
+    # todo: must be tested
+    def prefixed_iter(
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
         starting_by: Optional[str] = None,
@@ -99,34 +103,13 @@ class LevelDBLocal:
         :param kwargs: additional arguments of plyvel.DB.iterator()
         :returns: the custom iterable
         """
-        self.iter_prefixes = prefixes
-        self.iter_starting_by = starting_by
-        self.iter_params = kwargs
-        return iter(self)
-
-    def __iter__(self) -> Iterator:
-        """
-        Iterate over the database, possibly using the parameters defined in the __call__
-
-        :returns: the iterator
-        """
         prefixes = (
-            normalize_strings(self.key_encoder, self.iter_prefixes)
-            if self.iter_prefixes is not None
-            else []
+            normalize_strings(self.key_encoder, prefixes)
+            if prefixes is not None
+            else ()
         )
-        starting_by = (
-            self.key_encoder(self.iter_starting_by)
-            if self.iter_starting_by is not None
-            else None
-        )
-        iter_params = self.iter_params
-        self.iter_params = {}
-        self.iter_prefixes = None
-        self.iter_starting_by = None
-
         subdb = self._prefixed_db(prefixes=prefixes)
-        for x in subdb.db.iterator(prefix=starting_by, **iter_params):
+        for x in subdb.db.iterator(prefix=starting_by, **kwargs):
             if isinstance(x, bytes):
                 try:
                     yield self.key_decoder(x)
@@ -137,6 +120,31 @@ class LevelDBLocal:
                 key, value = x
                 yield self.key_decoder(key), self.value_decoder(value)
 
+    def prefixed_len(
+        self,
+        prefixes: Optional[Union[str, Iterable[str]]] = None,
+        starting_by: Optional[str] = None,
+        **kwargs,
+    ) -> int:
+        return sum(
+            1
+            for _ in self.prefixed_iter(
+                prefixes=prefixes,
+                starting_by=starting_by,
+                include_key=True,
+                include_value=False,
+                **kwargs,
+            )
+        )
+
+    def __iter__(self) -> Iterable:
+        """
+        Iterate over the database, possibly using the parameters defined in the __call__
+
+        :returns: the iterator
+        """
+        return self.prefixed_iter()
+
     def __len__(self) -> int:
         """
         Computes the number of element in the database.
@@ -145,7 +153,7 @@ class LevelDBLocal:
         :returns: number of elements in the database
         """
         # todo: fix the dblen of prefixed db!
-        return sum(1 for _ in self(include_key=True, include_value=False))
+        return sum(1 for _ in self.prefixed_iter(include_key=True, include_value=False))
 
     def __setitem__(self, key: Union[str, Iterable[str]], value: Any) -> None:
         """
