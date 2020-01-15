@@ -1,0 +1,231 @@
+from pathlib import Path
+from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
+from urllib.parse import quote, quote_plus
+
+import requests
+from requests.compat import urljoin, urlparse
+
+import numpy as np
+import orjson
+import plyvel
+from flask import Response
+from openleveldb.dbconnector import LevelDBConnector
+from openleveldb.serializer import DecodeError, decode, encode
+from plyvel._plyvel import PrefixedDB
+from tqdm import tqdm
+
+
+class LevelDBClient:
+
+    _instances = {}
+
+    @staticmethod
+    def get_instance(
+        db_path: Union[str, Path], server_address: str = "http://127.0.0.1:5000",
+    ) -> "LevelDBClient":
+        """
+        Return a singleton instance of LevelDB for each path
+
+        :param server_address:
+        :param db_path:
+        :returns: the LevelDBClient object
+        """
+        db_path = Path(db_path)
+        if db_path not in LevelDBClient._instances:
+            LevelDBClient._instances[(server_address, db_path)] = LevelDBClient(
+                server_address, db_path
+            )
+        return LevelDBClient._instances[(server_address, db_path)]
+
+    def __init__(
+        self,
+        server_address: str,
+        db_path: Union[str, Path],
+        value_encoder: Callable[[Any], bytes] = encode,
+        value_decoder: Callable[[bytes], Any] = decode,
+    ) -> None:
+        self.value_encoder, self.value_decoder = value_encoder, value_decoder
+
+        self.server_address = server_address
+        self.db_path = db_path
+
+    def _prefixed_db(self, prefixes: Iterable[str]) -> str:
+        """
+        Apply all the prefixes (last one included) to obtain the desired prefixed database
+
+        :param prefixes: the prefix or the iterable of prefixes to apply
+        :returns: the prefixed database
+        """
+        res = requests.get(
+            url=self.server_address + "/get_prefixed_db_path",
+            params={"prefixes": prefixes, "dbpath": self.db_path},
+        )
+        return res.text
+
+    def custom_iterator(
+        self, prefixes: bytes = None, starting_by: Optional[str] = None, **kwargs
+    ) -> Iterable:
+        """
+        Builds a custom iterator exploiting the parameters available in plyvel.DB
+
+        :param prefixes: the prefix or the iterable of prefixes to apply
+        :param starting_by: start the iteration from the specified prefix
+        :param kwargs: additional arguments of plyvel.DB.iterator()
+        :returns: the custom iterable
+        """
+        raise NotImplementedError
+
+    def __iter__(self) -> Iterator:
+        """
+        Default iterator over (key, value) couples
+
+        :returns: the iterator
+        """
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        """
+        Computes the number of element in the database.
+        It may be very slow, use with caution.
+
+        :returns: number of elements in the database
+        """
+        # todo: fix the dblen of prefixed db!
+        res = requests.get(
+            url=self.server_address + "/dblen", params={"dbpath": self.db_path},
+        )
+        return decode(res.content)
+
+    def __setitem__(self, key: Union[str, Iterable[str]], value: Any) -> Response:
+        """
+        Store the couple (key, value) in leveldb.
+        The key and the value are automatically encoded using the encoders registered
+        in the serializer.
+
+        The key may be a single string or an iterable of strings, to specify prefixes.
+        The last element is always the key.
+
+            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb['key'] = 'value_string1'
+            >>> ldb['key']
+            'value_string1'
+            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
+            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
+            'value_string2'
+            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
+
+        :param key: string or iterable of string to specify prefixes, encoded
+                    by the serializer.
+        :returns: the value associated to the key in leveldb, decoded by the serializer.
+        """
+        res = requests.post(
+            url=self.server_address + "/setitem",
+            data=encode(value),
+            headers={"Content-Type": "application/octet-stream"},
+            params={"dbpath": self.db_path, "key": key},
+        )
+        return res
+
+    def __getitem__(
+        self, key: Union[str, Iterable[Union[str, Ellipsis.__class__]]]
+    ) -> Any:
+        """
+        Retrieve the couple (key, value) from leveldb.
+        The key is automatically encoded using the encoders registered in the
+        serializer, and the value is automatically decoded using the decoders
+        registered in the serializer.
+
+        The key may be a single string or an iterable of strings, to specify prefixes.
+        The last element is always the key.
+
+            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb['key'] = 'value_string1'
+            >>> ldb['key']
+            'value_string1'
+            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
+            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
+            'value_string2'
+            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
+
+        It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
+        as the actual key:
+
+            >>> a = LevelDBConnector.get_instance(tmpfile)
+            >>> isinstance(ldb.db, plyvel.DB)
+            True
+            >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
+            True
+            >>> isinstance(ldb, LevelDBConnector) and isinstance(ldb['prefix', ...], LevelDBConnector)
+            True
+
+        :param key: string or iterable of string to specify prefixes, auto-encoded
+                    by the serializer. It's possible to specify sub-db with Ellipsis.
+        :returns: the value associated to the key in leveldb, decoded by the serializer.
+        """
+        res = requests.get(
+            url=self.server_address + "/getitem",
+            params={"dbpath": self.db_path, "key": key},
+        )
+
+        if key is Ellipsis:
+            raise NotImplementedError
+
+        try:
+            return self.value_decoder(res.content)
+        except DecodeError:
+            return None
+
+    def __delitem__(self, key: Union[str, Iterable[str]]) -> Response:
+        """
+        Delete the couple (key, value) from leveldb.
+        The key is automatically encoded using the encoders registered in the serializer.
+
+        The key may be a single string or an iterable of strings, to specify prefixes.
+        The last element is always the key.
+
+            >>> ldb = LevelDBConnector.get_instance(tmpfile)
+            >>> ldb['key'] = 'value_string1'
+            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
+            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
+            >>> dblen(ldb)
+            0
+
+        :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
+        """
+        res = requests.put(
+            url=self.server_address + "/delitem",
+            params={"dbpath": self.db_path, "key": key},
+        )
+        return res
+
+    def __repr__(self) -> str:
+        res = requests.get(
+            url=self.server_address + "/repr",
+            params={"dbpath": self.db_path, "classname": self.__class__.__name__},
+        )
+        return res.text
+
+
+if __name__ == "__main__":
+
+    db = LevelDBClient.get_instance(
+        db_path="azz", server_address="http://127.0.0.1:5000"
+    )
+
+    nu = 100
+    for x in tqdm(range(nu), desc="writing"):
+        key = f"{x}"
+        db[key] = np.random.rand(3, 1000)
+
+    for x in tqdm(range(nu), desc="reading"):
+        key = f"{x}"
+        v = db[key]
+    # db["ciaosdf"] = np.array([1, 2])
+    # a = db["ciaosdf"]
+    #
+    # testing = [
+    #     len(db),
+    #     db,
+    # ]
+    # for x in testing:
+    #     print(x)
