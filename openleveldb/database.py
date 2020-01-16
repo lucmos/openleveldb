@@ -192,7 +192,7 @@ class LevelDB:
     def close(self) -> None:
         self.dbconnector.close()
         if hasattr(self, "bg_server"):
-            self.bg_server.kill()
+            self.bg_server.terminate()
 
 
 if __name__ == "__main__":
@@ -208,34 +208,40 @@ if __name__ == "__main__":
         nu = 10
         for x in tqdm(range(nu), desc="writing"):
             key = f"{x}"
-            db[key] = np.random.rand(3, 1000)
+            db[key] = np.random.rand(3, 10)
 
         for x in tqdm(range(nu), desc="reading"):
             key = f"{x}"
             v = db[key]
 
-        # for x in tqdm(range(nu), desc="deleting"):
-        #     key = f"{x}"
-        #     del db[key]
+        for x in tqdm(db, desc="iterating"):
+            pass
 
-        print(f"len(db) ={len(db)}")
-        # try:
-        #     for x in tqdm(db, desc="iterating"):
-        #         pass
-        # except NotImplementedError:
-        #     print(f"Error: {NotImplementedError}")
-        print()
+        for x in tqdm(range(nu), desc="deleting"):
+            key = f"{x}"
+            del db[key]
+
+        print(f"len(db) ={len(db)}", file=sys.stderr)
+        print("", file=sys.stderr)
 
     db_path = "/home/luca/Scrivania/azz"
 
-    print("Testing local LevelDB")
+    print("Testing local LevelDB", file=sys.stderr)
     db = LevelDB(db_path=db_path)
     test_db(db)
     db.close()
     sleep(0.25)
 
-    # print("Testing REST LevelDB")
-    # # db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
-    # db = LevelDB(db_path=db_path, allow_multiprocessing=True)
-    # test_db(db)
-    # db.close()
+    print("Testing REST LevelDB", file=sys.stderr)
+    db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
+    test_db(db)
+    db.close()
+    sleep(0.25)
+
+    db = LevelDB(db_path=db_path, allow_multiprocessing=True)
+    try:
+        print("Testing REST LevelDB", file=sys.stderr)
+        test_db(db)
+        db.close()
+    except BaseException:
+        db.close()

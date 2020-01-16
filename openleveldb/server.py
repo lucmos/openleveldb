@@ -143,6 +143,7 @@ def dummy_server(port: Union[int, str]) -> Process:
 
     def runflask() -> None:
         sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
         app.run(port=port)
 
     dummy_server = Process(target=runflask)
