@@ -1,6 +1,28 @@
+import random
+import uuid
 from typing import Iterable
 
 import plyvel
+
+
+class RandomUuidGenerator:
+    """Generates a sequence of pseudo-random UUIDs.
+
+    Given the same seed, it will generate the same sequence.
+    """
+
+    def __init__(self, seed):
+        self.rng = random.Random(seed)
+
+    def gen_uuid(self):
+        return uuid.UUID(
+            bytes=bytes(self.rng.getrandbits(8) for _ in range(16)), version=4
+        )
+
+
+a = RandomUuidGenerator(0)
+
+BYTES_DELIMITER = a.gen_uuid().bytes
 
 
 def get_prefixed_db(db: plyvel.DB, prefixes: Iterable[bytes]) -> plyvel.DB:
