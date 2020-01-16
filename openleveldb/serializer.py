@@ -147,8 +147,8 @@ class DecodeType(Enum):
             return DecodeType(enc).pure_decode_fun(obj)
         except json.decoder.JSONDecodeError as ex:
             raise ex
-        except ValueError:
-            raise DecodeError(f"missing DecodeType identifier in bytes blob") from None
+        except ValueError as ex:
+            raise DecodeError(f"missing DecodeType identifier in bytes blob") from ex
 
     INT = (
         b"i",
