@@ -124,8 +124,11 @@ class LevelDBLocal:
                     yield self.value_decoder(x)
 
             else:
-                key, value = x
-                yield self.key_decoder(key), self.value_decoder(value)
+                try:
+                    key, value = x
+                    yield self.key_decoder(key), self.value_decoder(value)
+                except TypeError:
+                    yield None
 
     def prefixed_len(
         self,

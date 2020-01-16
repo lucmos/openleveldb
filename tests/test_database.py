@@ -353,3 +353,12 @@ class TestDatabase:
         if isinstance(dbconnector, LevelDBLocal):
             assert isinstance(db.dbconnector.db, plyvel.DB)
             assert isinstance(subdb.dbconnector.db, plyvel._plyvel.PrefixedDB)
+
+    def test_regression_prefix_iterator(self, db: LevelDB):
+        # wrong detection of what the prefixed iter should return
+        db["key"] = "value"
+        assert list(db.prefixed_iter(include_key=False, include_value=False))[0] is None
+        assert list(db.prefixed_iter(include_key=True, include_value=False)) == ["key"]
+        assert list(db.prefixed_iter(include_key=False, include_value=True)) == [
+            "value"
+        ]

@@ -98,8 +98,11 @@ class LevelDBClient:
                     yield self.value_decoder(x)
 
             else:
-                key, value = x
-                yield DecodeType.STR.pure_decode_fun(key), self.value_decoder(value)
+                try:
+                    key, value = x
+                    yield DecodeType.STR.pure_decode_fun(key), self.value_decoder(value)
+                except TypeError:
+                    yield None
 
     def __iter__(self) -> Iterable:
         """
