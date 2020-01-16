@@ -76,7 +76,7 @@ class Serializer:
         return blob
 
 
-class DecodeError(ValueError):
+class DecodeError(BaseException):
     pass
 
 
