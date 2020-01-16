@@ -122,7 +122,7 @@ class TestDatabase:
 
         assert (
             repr([x for x in db.prefixed_iter(include_key=False)])
-            == "['sv1', 'sv3', 'sv4', 'sv2', 'sv5']"
+            == "['v1', 'v3', 'v4', 'v2', 'v5']"
         )
         assert (
             repr([x for x in db.prefixed_iter(include_value=False)])
@@ -362,3 +362,33 @@ class TestDatabase:
         assert list(db.prefixed_iter(include_key=False, include_value=True)) == [
             "value"
         ]
+
+    keysvalues2 = [
+        (["a", "0", "key"], 0.42),
+        (["a", "n", "key"], np.array([[1, 2], [2, 4]])),
+        (["a", "N", "key"], None),
+        (["a", "", "key"], ""),
+        (["a", "h", "key"], "hola"),
+        (["a", "{", "key"], {":)": ":("}),
+        (["a", "t", "key"], []),
+        (["a", "s", "key"], [3, 4, 5]),
+        (["a", "s", "key", "a"], [[3, 4, 5], [3, [3, [3, 4, 5], 5], 5]]),
+        (["a", "s", "key", "b"], {":(": [[3, 4, 5], [3, [3, [3, 4, 5], 5], 5]]}),
+        (["a", "^", "key"], -42),
+        (["a", "1", "key"], 1e100),
+        (["a", "-", "key"], -1e100),
+    ]
+
+    @pytest.mark.parametrize(
+        argnames="keysvalues2", argvalues=[keysvalues2],
+    )
+    def test_db_fancystore(self, db: LevelDB, keysvalues2) -> None:
+        for k, v in keysvalues2:
+            db[k] = v
+
+        for k, v in keysvalues2:
+            value = db[k]
+            if isinstance(value, np.ndarray):
+                assert np.array_equal(value, v)
+            else:
+                assert v == db[k]
