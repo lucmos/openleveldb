@@ -9,8 +9,8 @@ from typing import Iterable, Tuple, Union
 import plyvel
 from flask import Flask, Response, g, request
 from openleveldb import serializer
-from openleveldb.serializer import DecodeType, decode
-from openleveldb.utils import get_prefixed_db
+from openleveldb.connectorcommon import get_prefixed_db
+from openleveldb.serializer import DecodeType
 
 app = Flask(__name__)
 

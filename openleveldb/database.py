@@ -6,11 +6,9 @@ from pathlib import Path
 from time import sleep
 from typing import Any, Iterable, Iterator, Optional, Union
 
-import openleveldb
 import plyvel
-from openleveldb import server
-from openleveldb.clientconnector import LevelDBClient
-from openleveldb.localconnector import LevelDBLocal
+from openleveldb.connectorclient import LevelDBClient
+from openleveldb.connectorlocal import LevelDBLocal
 from openleveldb.server import dummy_server
 from tqdm import tqdm
 

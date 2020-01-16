@@ -8,8 +8,8 @@ from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
 import numpy as np
 import plyvel
 from openleveldb import serializer
+from openleveldb.connectorcommon import get_prefixed_db
 from openleveldb.serializer import DecodeError, normalize_strings
-from openleveldb.utils import get_prefixed_db
 from plyvel._plyvel import PrefixedDB
 
 

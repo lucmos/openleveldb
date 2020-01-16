@@ -11,9 +11,9 @@ import orjson
 import plyvel
 import pytest
 from openleveldb import __version__
-from openleveldb.clientconnector import LevelDBClient
+from openleveldb.connectorclient import LevelDBClient
+from openleveldb.connectorlocal import LevelDBLocal
 from openleveldb.database import LevelDB
-from openleveldb.localconnector import LevelDBLocal
 from openleveldb.serializer import DecodeError, Serializer, encode
 
 
