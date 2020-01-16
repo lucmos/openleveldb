@@ -1,6 +1,7 @@
 """
-Class that wraps the LevelDB plyvel to support dict-like behaviour, with automatic serialization to bytes and
-deserialization from bytes provided by the serialization module
+Class that wraps the LevelDB plyvel to support dict-like behaviour,
+with automatic serialization to bytes and deserialization from bytes provided
+by the serialization module
 """
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Union
@@ -13,30 +14,11 @@ from plyvel._plyvel import PrefixedDB
 
 
 class LevelDBLocal:
-    """
-    LevelDB connector
-
-    Sample usage:
-
-        >>> ldb = LevelDBLocal.get_instance(tmpfile)
-        >>> ldb['key'] = 'value_string1'
-        >>> ldb['key']
-        'value_string1'
-        >>> del ldb['key']
-        >>> len(ldb)
-        0
-    """
 
     _instances = {}
 
     @staticmethod
     def get_instance(db_path: Union[str, Path]) -> "LevelDBLocal":
-        """
-        Return a singleton instance of LevelDB for each path
-
-        :param db_path: the path to the LevelDB database
-        :returns: the LevelDB object
-        """
         db_path = Path(db_path)
         if db_path not in LevelDBLocal._instances:
             LevelDBLocal._instances[db_path] = LevelDBLocal(db_path)
@@ -76,12 +58,6 @@ class LevelDBLocal:
         self.iter_starting_by: Optional[str] = None
 
     def prefixed_db(self, prefixes: Iterable[bytes]) -> "LevelDBLocal":
-        """
-        Apply all the prefixes (last one included) to obtain the desired prefixed database
-
-        :param prefixes: the prefix or the iterable of prefixes to apply
-        :returns: the prefixed database
-        """
         return LevelDBLocal(
             db_path=None,
             db=get_prefixed_db(self.db, prefixes) if prefixes is not None else self.db,
@@ -95,14 +71,6 @@ class LevelDBLocal:
         include_key=True,
         include_value=True,
     ) -> Iterable:
-        """
-        Builds a custom iterator exploiting the parameters available in plyvel.DB
-
-        :param prefixes: the prefix or the iterable of prefixes to apply
-        :param starting_by: start the iteration from the specified prefix
-        :param kwargs: additional arguments of plyvel.DB.iterator()
-        :returns: the custom iterable
-        """
         prefixes = (
             normalize_strings(self.key_encoder, prefixes)
             if prefixes is not None
@@ -118,9 +86,9 @@ class LevelDBLocal:
             prefix=starting_by, include_key=include_key, include_value=include_value
         ):
             if isinstance(x, bytes):
-                try:
+                if include_key:
                     yield self.key_decoder(x)
-                except DecodeError:
+                else:
                     yield self.value_decoder(x)
 
             else:
@@ -146,45 +114,12 @@ class LevelDBLocal:
         )
 
     def __iter__(self) -> Iterable:
-        """
-        Iterate over the database, possibly using the parameters defined in the __call__
-
-        :returns: the iterator
-        """
         return self.prefixed_iter()
 
     def __len__(self) -> int:
-        """
-        Computes the number of element in the database.
-        It may be very slow, use with caution.
-
-        :returns: number of elements in the database
-        """
-        # todo: fix the dblen of prefixed db!
         return sum(1 for _ in self.prefixed_iter(include_key=True, include_value=False))
 
     def __setitem__(self, key: Union[str, Iterable[str]], value: Any) -> None:
-        """
-        Store the couple (key, value) in leveldb.
-        The key and the value are automatically encoded using the encoders registered
-        in the serializer.
-
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
-
-            >>> ldb = LevelDBLocal.get_instance(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['key']
-            'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
-            'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
-
-        :param key: string or iterable of string to specify prefixes, encoded
-                    by the serializer.
-        :returns: the value associated to the key in leveldb, decoded by the serializer.
-        """
         *prefixes, key = normalize_strings(self.key_encoder, key)
 
         if key is Ellipsis:
@@ -196,39 +131,6 @@ class LevelDBLocal:
     def __getitem__(
         self, key: Union[str, Iterable[Union[str, Ellipsis.__class__]]]
     ) -> Any:
-        """
-        Retrieve the couple (key, value) from leveldb.
-        The key is automatically encoded using the encoders registered in the
-        serializer, and the value is automatically decoded using the decoders
-        registered in the serializer.
-
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
-
-            >>> ldb = LevelDBLocal.get_instance(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['key']
-            'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
-            'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
-
-        It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
-        as the actual key:
-
-            >>> a = LevelDBLocal.get_instance(tmpfile)
-            >>> isinstance(ldb.db, plyvel.DB)
-            True
-            >>> isinstance(ldb['prefix', ...].db, PrefixedDB)
-            True
-            >>> isinstance(ldb, LevelDBLocal) and isinstance(ldb['prefix', ...], LevelDBLocal)
-            True
-
-        :param key: string or iterable of string to specify prefixes, auto-encoded
-                    by the serializer. It's possible to specify sub-db with Ellipsis.
-        :returns: the value associated to the key in leveldb, decoded by the serializer.
-        """
         *prefixes, key = normalize_strings(self.key_encoder, key)
         ldb = self.prefixed_db(prefixes)
         if key is Ellipsis:
@@ -236,30 +138,12 @@ class LevelDBLocal:
         return self.value_decoder(ldb.db.get(key))
 
     def __delitem__(self, key: Union[str, Iterable[str]]) -> None:
-        """
-        Delete the couple (key, value) from leveldb.
-        The key is automatically encoded using the encoders registered in the serializer.
-
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
-
-            >>> ldb = LevelDBLocal.get_instance(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
-            >>> len(ldb)
-            0
-
-        :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
-        """
         *prefixes, key = normalize_strings(self.key_encoder, key)
         ldb = self.prefixed_db(prefixes)
         ldb.db.delete(key)
 
     def __repr__(self) -> str:
         innerdb = f"{self.db}"
-        # if isinstance(self.db, PrefixedDB):
-        #     innerdb = f"{innerdb[:-21]}>"
         return f"{self.__class__.__name__}(path='{self.db_path}', db={innerdb})"
 
     def close(self) -> None:

@@ -1,17 +1,13 @@
-import atexit
-import os
-import sys
-from multiprocessing import Process
+"""
+Provides a pythonic dict-like interface to local or remote leveldb.
+In remote mode it allows access from multiple processes.
+"""
 from pathlib import Path
-from time import sleep
 from typing import Any, Iterable, Iterator, Optional, Union
 
-import plyvel
-from openleveldb.config import get_env, load_envs
+from openleveldb.config import load_envs
 from openleveldb.connectorclient import LevelDBClient
 from openleveldb.connectorlocal import LevelDBLocal
-from openleveldb.server import dummy_server
-from tqdm import tqdm
 
 
 class LevelDB:
@@ -21,6 +17,23 @@ class LevelDB:
         server_address: Optional[str] = None,
         dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
     ) -> None:
+        """
+        Provide access to a leveldb database, it if does not exists one is created.
+
+        Local databases do not support multiprocessing.
+        It is possible to access a local db with:
+
+            >>> db = LevelDB(db_path)
+
+        Remote databases support multiprocessing. Once the a leveldb server is running,
+        it is possible to access the remote db with:
+
+            >>> # db = LevelDB(remote_db_path, server_address)
+
+        :param db_path: the path in the filesystem to the database
+        :param server_address: the address of the remote server
+        :param dbconnector: provide directly an existing dbconnector
+        """
         load_envs()
         self.db_path = db_path
         self.server_address = server_address
@@ -33,17 +46,6 @@ class LevelDB:
         else:
             self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
 
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, LevelDB):
-            return False
-        return (
-            self.db_path == other.db_path
-            and self.server_address == other.server_address
-        )
-
-    def __hash__(self) -> int:
-        return hash(self.db_path) ^ hash(self.server_address)
-
     def prefixed_iter(
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
@@ -52,12 +54,48 @@ class LevelDB:
         include_value=True,
     ) -> Iterable:
         """
-        Builds a custom iterator exploiting the parameters available in plyvel.DB
+        Builds a custom iterator.
 
-        :param prefixes: the prefix or the iterable of prefixes to apply
-        :param starting_by: start the iteration from the specified prefix
-        :param kwargs: additional arguments of plyvel.DB.iterator()
-        :returns: the custom iterable
+        The parameters ``include_key`` and  ``include_value`` define what should be
+        yielded:
+
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+            >>> list(db.prefixed_iter(include_key=False, include_value=False))
+            [None, None, None, None]
+            >>> list(db.prefixed_iter(include_key=True, include_value=False))
+            ['a1', 'b1', 'b2', 'c1']
+            >>> list(db.prefixed_iter(include_key=False, include_value=True))
+            ['value1', 'value2', 'value3', 'value4']
+
+
+        The ``prefixes`` and ``starting_by`` parameters have a similar meaning. They
+        determine over which keys it should iterate. The difference is that
+        ``starting by`` preserves the prefix in the returned key.
+        The iterations stops when all the available keys with the given prefixes have
+        been yielded
+
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+            >>> list(db.prefixed_iter(prefixes=["b"]))
+            [('1', 'value2'), ('2', 'value3')]
+            >>> list(db.prefixed_iter(prefixes=["b", "1"]))
+            [('', 'value2')]
+            >>> list(db.prefixed_iter(starting_by="b"))
+            [('b1', 'value2'), ('b2', 'value3')]
+            >>> list(db.prefixed_iter(starting_by=["b", "1"]))
+            [('b1', 'value2')]
+
+        :param include_key: if False do not yield the keys
+        :param include_value: if False do not yield the values
+
+        :param prefixes: prefixes of the desired keys
+            The prefixes  will  be removed from the keys returned
+
+        :param starting_by: prefixes of the desired keys
+            The prefixes  will  be preserved from the keys returned
+
+        :return: the iterable over the keys and/or values
         """
         return self.dbconnector.prefixed_iter(
             prefixes=prefixes,
@@ -70,51 +108,77 @@ class LevelDB:
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
         starting_by: Optional[str] = None,
-        **kwargs,
     ) -> int:
+        """
+        Utility function to compute the number of keys with a given prefix,
+        see :py:meth:~database.LevelDB.prefixed_iter for more details.
+
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+            >>> db.prefixed_len(prefixes=["b"])
+            2
+            >>> db.prefixed_len(prefixes=["b", "1"])
+            1
+
+        :param prefixes: prefixes of the desired keys
+            The prefixes  will  be removed from the keys returned
+
+        :param starting_by: prefixes of the desired keys
+            The prefixes  will  be preserved from the keys returned
+
+        :return: the number of matching keys
+        """
         return self.dbconnector.prefixed_len(
-            prefixes=prefixes, starting_by=starting_by, **kwargs
+            prefixes=prefixes, starting_by=starting_by,
         )
 
     def __iter__(self) -> Iterator:
         """
-        Default iterator over (key, value) couples
+        Iterator over (key, value) sorted by key
 
-        :returns: the iterator
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+
+        :returns: the iterator over the items
         """
         return iter(self.dbconnector)
 
     def __len__(self) -> int:
         """
         Computes the number of element in the database.
-        It may be very slow, use with caution.
+
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+            >>> len(db)
+            4
 
         :returns: number of elements in the database
         """
-        # todo: fix the dblen of prefixed db!
         return len(self.dbconnector)
 
     def __setitem__(self, key: Union[str, Iterable[str]], value: Any) -> None:
         """
         Store the couple (key, value) in leveldb.
-        The key and the value are automatically encoded using the encoders registered
-        in the serializer.
+        The key and the value are automatically encoded together with the obj
+        type information, in order to be able to automate the decoding.
 
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
+            >>> import numpy as np
+            >>> db["array"] = np.array([1, 2, 3], dtype=np.int8)
+            >>> db["array"]
+            array([1, 2, 3], dtype=int8)
+            >>> del db["array"]
 
-            >>> ldb = LevelDB(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['key']
-            'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
-            'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
 
-        :param key: string or iterable of string to specify prefixes, encoded
-                    by the serializer.
-        :returns: the value associated to the key in leveldb, decoded by the serializer.
+        The key may be one or more strings to specify prefixes.
+        The last element is always the key:
+
+            >>> db["prefix1", "prefix2", "key"] = "myvalue"
+            >>> db["prefix1", "prefix2", "key"]
+            'myvalue'
+            >>> del db["prefix1", "prefix2", "key"]
+
+        :param key: one or more strings to specify prefixes
+        :returns: the value associated to the key in leveldb
         """
         self.dbconnector[key] = value
 
@@ -123,34 +187,45 @@ class LevelDB:
     ) -> Any:
         """
         Retrieve the couple (key, value) from leveldb.
-        The key is automatically encoded using the encoders registered in the
-        serializer, and the value is automatically decoded using the decoders
-        registered in the serializer.
 
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
+        >>> db["a1"]
+        'value1'
+        >>> db["a", "1"]
+        'value1'
 
-            >>> ldb = LevelDB(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['key']
-            'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key']
-            'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
+        The value is automatically decoded into its original type. The value must
+        have been stored with :py:~:py:meth:~database.LevelDB.__setitem__
 
-        It is possible to retrieve prefixedDB specifying prefixes and using Ellipsis
-        as the actual key:
+            >>> import numpy as np
+            >>> db["array"] = np.array([1, 2, 3], dtype=np.int8)
+            >>> db["array"]
+            array([1, 2, 3], dtype=int8)
+            >>> del db["array"]
 
-            >>> a = LevelDB(tmpfile)
-            >>> isinstance(ldb.db, plyvel.DB)
-            True
-            >>> isinstance(ldb, LevelDB) and isinstance(ldb['prefix', ...], LevelDB)
-            True
+        The key may be one or more strings, to specify prefixes.
+        The last element is always the key:
 
-        :param key: string or iterable of string to specify prefixes, auto-encoded
-                    by the serializer. It's possible to specify sub-db with Ellipsis.
-        :returns: the value associated to the key in leveldb, decoded by the serializer.
+            >>> db["prefix1", "prefix2", "key"] = "myvalue"
+            >>> db["prefix1", "prefix2", "key"]
+            'myvalue'
+            >>> del db["prefix1", "prefix2", "key"]
+
+        It is possible to retrieve a stateful instance of :py:class:~database.LevelDB
+        that accounts for prefixes using Ellipsis as key:
+
+            >>> list(db)
+            [('a1', 'value1'), ('b1', 'value2'), ('b2', 'value3'), ('c1', 'value4')]
+            >>> db_b = db['b', ...]
+            >>> db_b["1"]
+            'value2'
+            >>> list(db_b)
+            [('1', 'value2'), ('2', 'value3')]
+            >>> list(db["c", ...])
+            [('1', 'value4')]
+
+        :param key: one or more strings to specify prefixes. It's possible to specify
+            sub-db using the Ellipsis as key.
+        :returns: the value associated to the key in leveldb or a sub-db.
         """
         out = self.dbconnector[key]
         return (
@@ -166,19 +241,23 @@ class LevelDB:
     def __delitem__(self, key: Union[str, Iterable[str]]) -> None:
         """
         Delete the couple (key, value) from leveldb.
-        The key is automatically encoded using the encoders registered in the serializer.
 
-        The key may be a single string or an iterable of strings, to specify prefixes.
-        The last element is always the key.
+        The key may be one or more strings, to specify prefixes.
+        The last element is always the key:
 
-            >>> ldb = LevelDB(tmpfile)
-            >>> ldb['key'] = 'value_string1'
-            >>> ldb['prefix1', 'prefix2', 'prefix2', 'key'] = 'value_string2'
-            >>> del ldb['key'], ldb['prefix1', 'prefix2', 'prefix2', 'key'], ldb['key']
-            >>> dblen(ldb)
-            0
 
-        :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
+            >>> db["prefix", "key"] = "value"
+            >>> db["prefix", "key"]
+            'value'
+            >>> db["prefixkey"]
+            'value'
+            >>> del db["prefix", "key"]
+            >>> print(db["prefix", "key"])
+            None
+            >>> print(db["prefixkey"])
+            None
+
+        :param key: one or more strings to specify prefixes.
         """
         del self.dbconnector[key]
 
@@ -193,9 +272,10 @@ class LevelDB:
         )
 
     def close(self) -> None:
+        """
+        Close the database
+        """
         self.dbconnector.close()
-        if hasattr(self, "bg_server"):
-            self.bg_server.terminate()
 
 
 if __name__ == "__main__":
@@ -204,5 +284,12 @@ if __name__ == "__main__":
 
     import numpy as np
 
-    tmpfile = tempfile.mkdtemp()
-    doctest.testmod(extraglobs={"tmpfile": tmpfile})
+    db_path = tempfile.mkdtemp()
+    db = LevelDB(db_path=db_path)
+
+    db["a", "1"] = "value1"
+    db["b", "1"] = "value2"
+    db["b", "2"] = "value3"
+    db["c", "1"] = "value4"
+
+    doctest.testmod(extraglobs={"tmpfile": db_path, "db": db})

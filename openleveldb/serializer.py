@@ -1,7 +1,6 @@
 """
 Automatic conversion to and from bytes
 """
-import abc
 import base64
 import collections
 import functools
@@ -9,7 +8,7 @@ import json
 import typing
 from enum import Enum
 from io import BytesIO
-from typing import Any, Callable, Iterable, Sized, Union
+from typing import Any, Callable, Iterable, Union
 
 import numpy as np
 import orjson

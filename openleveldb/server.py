@@ -1,3 +1,7 @@
+"""
+Class that exposes the leveldb through REST API, with automatic serialization
+to bytes and deserialization from bytes provided by the serialization module
+"""
 import http
 import os
 import pickle
@@ -153,79 +157,3 @@ def dummy_server(port: Union[int, str]) -> Process:
 
 if __name__ == "__main__":
     pass
-
-    # import requests
-    # import numpy as np
-
-    # # # Get item
-    # starting_by = None
-    # include_key = True
-    # include_value = True
-    # prefixes = []  # ["key"]
-    # res = requests.get(
-    #     url="http://127.0.0.1:5000/iterator",
-    #     params={
-    #         "dbpath": "azz",
-    #         "key": f"key{0}",
-    #         "include_key": include_key,
-    #         "include_value": include_value,
-    #         "starting_by": starting_by,
-    #         "prefixes": prefixes,
-    #     },
-    # )
-    # out = pickle.loads(res.content)
-    #
-    # for z in out:
-    #     print(z)
-
-    # # # Get prefixed db
-    # res = requests.get(
-    #     url="http://127.0.0.1:5000/get_prefixed_db_path",
-    #     params={"prefixes": ["prefix1", "prefix2", "prefix3", "key"], "dbpath": "azz",},
-    # )
-    #
-    # print("prefixed", res.content, type(res.content))
-    # print()
-
-    # # # Len item
-    # res = requests.get(
-    #     url="http://127.0.0.1:5000/dblen", params={"dbpath": "azz", "key": "chiave"},
-    # )
-    # print("len", serializer.decode(res.content), type(res.content))
-    # print()
-    #
-    # # # Del item
-    # res = requests.delete(
-    #     url="http://127.0.0.1:5000/delitem", params={"dbpath": "azz", "key": f"key{0}"},
-    # )
-    #
-    # print("delitem", res.content, type(res.content))
-    # print()
-    #
-    # # # Set item
-    # res = requests.post(
-    #     url="http://127.0.0.1:5000/setitem",
-    #     data=serializer.encode(np.random.rand(100)),
-    #     params={"dbpath": "azz", "key": f"key{0}"},
-    # )
-    # print("setitem", res.content, type(res.content))
-    # print()
-    #
-    # # # Get item
-    # res = requests.get(
-    #     url="http://127.0.0.1:5000/getitem", params={"dbpath": "azz", "key": f"key{0}"},
-    # )
-    # print("getitem", bool(res.text), type(res.content))
-    # if res.content:
-    #     print(
-    #         "\t",
-    #         serializer.decode(res.content).shape,
-    #         type(serializer.decode(res.content)),
-    #     )
-    # print()
-    #
-    # # # Repr db
-    # res = requests.get(
-    #     url="http://127.0.0.1:5000/repr", params={"dbpath": "azz", "classname": "Oh"},
-    # )
-    # print("repr", res.text, type(res.content))
