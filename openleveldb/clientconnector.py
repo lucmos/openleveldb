@@ -229,7 +229,7 @@ class LevelDBClient:
         )
         return res.text
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         pass
 
 

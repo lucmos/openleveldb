@@ -189,7 +189,7 @@ if __name__ == "__main__":
     # doctest.testmod(extraglobs={"tmpfile": tmpfile})
 
     def test_db(db):
-        nu = 20
+        nu = 100
         for x in tqdm(range(nu), desc="writing"):
             key = f"{x}"
             db[key] = np.random.rand(3, 1000)
@@ -198,9 +198,9 @@ if __name__ == "__main__":
             key = f"{x}"
             v = db[key]
 
-        for x in tqdm(range(nu), desc="deleting"):
-            key = f"{x}"
-            del db[key]
+        # for x in tqdm(range(nu), desc="deleting"):
+        #     key = f"{x}"
+        #     del db[key]
 
         print(f"len(db) ={len(db)}")
         # try:
@@ -210,12 +210,14 @@ if __name__ == "__main__":
         #     print(f"Error: {NotImplementedError}")
         print()
 
+    db_path = "/home/luca/Scrivania/azz"
     print("Testing local LevelDB")
-    db = LevelDB(db_path="azz")
+    db = LevelDB(db_path=db_path)
     test_db(db)
-
+    db.close()
     sleep(0.25)
 
     print("Testing REST LevelDB")
-    db = LevelDB(db_path="azz", server_address="http://127.0.0.1:5000")
+    db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
     test_db(db)
+    db.close()
