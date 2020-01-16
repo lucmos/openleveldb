@@ -1,16 +1,19 @@
-import functools
+import pickle
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
-from urllib.parse import quote, quote_plus
+from typing import Any, Callable, Iterable, Optional, Union
 
 import requests
-from requests.compat import urljoin, urlparse
 
 import numpy as np
-import orjson
 import plyvel
 from flask import Response
-from openleveldb.serializer import DecodeError, decode, encode, normalize_strings
+from openleveldb.serializer import (
+    DecodeError,
+    DecodeType,
+    decode,
+    encode,
+    normalize_strings,
+)
 from plyvel._plyvel import PrefixedDB
 from tqdm import tqdm
 
@@ -77,15 +80,34 @@ class LevelDBClient:
         :param kwargs: additional arguments of plyvel.DB.iterator()
         :returns: the custom iterable
         """
-        raise NotImplementedError
+        res = requests.get(
+            url=self.server_address + "/iterator",
+            params={
+                "dbpath": self.db_path,
+                "include_key": include_key,
+                "include_value": include_value,
+                "starting_by": starting_by,
+                "prefixes": prefixes,
+            },
+        )
+        for x in pickle.loads(res.content):
+            if isinstance(x, bytes):
+                try:
+                    yield DecodeType.STR.pure_decode_fun(x)
+                except DecodeError:
+                    yield self.value_decoder(x)
 
-    def __iter__(self) -> Iterator:
+            else:
+                key, value = x
+                yield DecodeType.STR.pure_decode_fun(key), self.value_decoder(value)
+
+    def __iter__(self) -> Iterable:
         """
         Default iterator over (key, value) couples
 
         :returns: the iterator
         """
-        raise NotImplementedError
+        return self.prefixed_iter([], None, True, True)
 
     def prefixed_len(
         self,

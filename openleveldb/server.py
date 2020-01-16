@@ -1,14 +1,15 @@
 import http
-import io
 import os
+import pickle
 import sys
+from multiprocessing import Process
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Tuple, Union
 
 import plyvel
-from flask import Flask, Response, g, make_response, request
+from flask import Flask, Response, g, request
 from openleveldb import serializer
-from openleveldb.serializer import DecodeType
+from openleveldb.serializer import DecodeType, decode
 from openleveldb.utils import get_prefixed_db
 
 app = Flask(__name__)
@@ -37,16 +38,37 @@ def close_db(error) -> None:
                 y.close()
 
 
-@app.route("/prefixed_iterator", methods=["GET"])
-def prefixed_iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
-    # todo: stream https://flask.palletsprojects.com/en/1.1.x/patterns/streaming/
-    raise NotImplementedError
-
-
 @app.route("/iterator", methods=["GET"])
 def iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
-    # todo: stream https://flask.palletsprojects.com/en/1.1.x/patterns/streaming/
-    raise NotImplementedError
+    dbpath = request.args.get("dbpath")
+    prefixes = request.args.getlist("prefixes")
+    prefixes = (
+        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
+        if prefixes is not None
+        else ()
+    )
+    starting_by = request.args.get("starting_by")
+    starting_by = b"".join(
+        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, starting_by)
+        if starting_by is not None
+        else ()
+    )
+
+    include_key = request.args.get("include_key")
+    include_value = request.args.get("include_value")
+    print(include_key)
+    conv = lambda x: True if x == "True" else False
+    include_key = conv(include_key)
+    include_value = conv(include_value)
+    db = get_prefixed_db(get_db(dbpath), prefixes)
+    out = pickle.dumps(
+        list(
+            db.iterator(
+                prefix=starting_by, include_key=include_key, include_value=include_value
+            )
+        )
+    )
+    return Response(out, content_type="application/octet-stream")
 
 
 @app.route("/prefixed_dblen", methods=["GET"])
@@ -143,8 +165,7 @@ def repr() -> str:
     db = get_prefixed_db(get_db(dbpath), prefixes)
 
     innerdb = f"{db}"
-    # if isinstance(db, PrefixedDB):
-    #     innerdb = f"{innerdb[:-21]}>"
+
     dbrepr = f"{classname}(path='{dbpath}', db={innerdb})"
     return Response(dbrepr, content_type="text")
 
@@ -157,6 +178,27 @@ if __name__ == "__main__":
     import requests
     import numpy as np
 
+    # # # Get item
+    # starting_by = None
+    # include_key = True
+    # include_value = True
+    # prefixes = []  # ["key"]
+    # res = requests.get(
+    #     url="http://127.0.0.1:5000/iterator",
+    #     params={
+    #         "dbpath": "azz",
+    #         "key": f"key{0}",
+    #         "include_key": include_key,
+    #         "include_value": include_value,
+    #         "starting_by": starting_by,
+    #         "prefixes": prefixes,
+    #     },
+    # )
+    # out = pickle.loads(res.content)
+    #
+    # for z in out:
+    #     print(z)
+
     # # # Get prefixed db
     # res = requests.get(
     #     url="http://127.0.0.1:5000/get_prefixed_db_path",
@@ -166,45 +208,45 @@ if __name__ == "__main__":
     # print("prefixed", res.content, type(res.content))
     # print()
 
-    # # Len item
-    res = requests.get(
-        url="http://127.0.0.1:5000/dblen", params={"dbpath": "azz", "key": "chiave"},
-    )
-    print("len", serializer.decode(res.content), type(res.content))
-    print()
-
-    # # Del item
-    res = requests.delete(
-        url="http://127.0.0.1:5000/delitem", params={"dbpath": "azz", "key": f"key{0}"},
-    )
-
-    print("delitem", res.content, type(res.content))
-    print()
-
-    # # Set item
-    res = requests.post(
-        url="http://127.0.0.1:5000/setitem",
-        data=serializer.encode(np.random.rand(100)),
-        params={"dbpath": "azz", "key": f"key{0}"},
-    )
-    print("setitem", res.content, type(res.content))
-    print()
-
-    # # Get item
-    res = requests.get(
-        url="http://127.0.0.1:5000/getitem", params={"dbpath": "azz", "key": f"key{0}"},
-    )
-    print("getitem", bool(res.text), type(res.content))
-    if res.content:
-        print(
-            "\t",
-            serializer.decode(res.content).shape,
-            type(serializer.decode(res.content)),
-        )
-    print()
-
-    # # Repr db
-    res = requests.get(
-        url="http://127.0.0.1:5000/repr", params={"dbpath": "azz", "classname": "Oh"},
-    )
-    print("repr", res.text, type(res.content))
+    # # # Len item
+    # res = requests.get(
+    #     url="http://127.0.0.1:5000/dblen", params={"dbpath": "azz", "key": "chiave"},
+    # )
+    # print("len", serializer.decode(res.content), type(res.content))
+    # print()
+    #
+    # # # Del item
+    # res = requests.delete(
+    #     url="http://127.0.0.1:5000/delitem", params={"dbpath": "azz", "key": f"key{0}"},
+    # )
+    #
+    # print("delitem", res.content, type(res.content))
+    # print()
+    #
+    # # # Set item
+    # res = requests.post(
+    #     url="http://127.0.0.1:5000/setitem",
+    #     data=serializer.encode(np.random.rand(100)),
+    #     params={"dbpath": "azz", "key": f"key{0}"},
+    # )
+    # print("setitem", res.content, type(res.content))
+    # print()
+    #
+    # # # Get item
+    # res = requests.get(
+    #     url="http://127.0.0.1:5000/getitem", params={"dbpath": "azz", "key": f"key{0}"},
+    # )
+    # print("getitem", bool(res.text), type(res.content))
+    # if res.content:
+    #     print(
+    #         "\t",
+    #         serializer.decode(res.content).shape,
+    #         type(serializer.decode(res.content)),
+    #     )
+    # print()
+    #
+    # # # Repr db
+    # res = requests.get(
+    #     url="http://127.0.0.1:5000/repr", params={"dbpath": "azz", "classname": "Oh"},
+    # )
+    # print("repr", res.text, type(res.content))
