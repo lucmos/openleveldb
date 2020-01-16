@@ -11,6 +11,7 @@ import orjson
 import plyvel
 import pytest
 from openleveldb import __version__
+from openleveldb.config import get_env, load_envs
 from openleveldb.connectorclient import LevelDBClient
 from openleveldb.connectorlocal import LevelDBLocal
 from openleveldb.database import LevelDB
@@ -22,17 +23,18 @@ def test_version() -> None:
 
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
-
 DUMMY_TEMP_DATABASE = tempfile.mkdtemp()
-TEST_DUMMY_PORT = 9998
-
 REMOTE_TEMP_DATABASE = tempfile.mkdtemp()
-TEST_REMOTE_PORT = 9999
+# LOCAL_TEMP_DATABASE = DUMMY_TEMP_DATABASE = REMOTE_TEMP_DATABASE
+
+load_envs()
+TEST_SERVER_ADDRESS = get_env("TEST_DUMMY_SERVER_ADDRESS")
+TEST_SERVER_PORT = get_env("TEST_DUMMY_SERVER_PORT")
 
 
 @pytest.fixture(scope="session", autouse=True)
 def start_dummy_server() -> None:
-    p = openleveldb.server.dummy_server(TEST_REMOTE_PORT)
+    p = openleveldb.server.dummy_server(TEST_SERVER_PORT)
     yield None
     p.kill()
 
@@ -41,7 +43,7 @@ def start_dummy_server() -> None:
     scope="module",
     params=[
         (LOCAL_TEMP_DATABASE, None, False),
-        (REMOTE_TEMP_DATABASE, f"http://127.0.0.1:{TEST_REMOTE_PORT}", False),
+        (REMOTE_TEMP_DATABASE, f"{TEST_SERVER_ADDRESS}:{TEST_SERVER_PORT}", False),
         (DUMMY_TEMP_DATABASE, None, True),
     ],
 )
@@ -57,16 +59,16 @@ def db(request) -> LevelDB:
     ldb.close()
 
 
-# class TestPrint:
-#     def test_1(self, capsys, db) -> None:
-#         with capsys.disabled():
-#             print(db)
-#             # print(db.dbconnector)
-#
-#     def test_2(self, capsys, db) -> None:
-#         with capsys.disabled():
-#             print(db)
-#             # print(db.dbconnector)
+class TestPrint:
+    def test_1(self, capsys, db) -> None:
+        with capsys.disabled():
+            print(db)
+            # print(db.dbconnector)
+
+    def test_2(self, capsys, db) -> None:
+        with capsys.disabled():
+            print(db)
+            # print(db.dbconnector)
 
 
 class TestDatabase:

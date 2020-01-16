@@ -7,12 +7,11 @@ from time import sleep
 from typing import Any, Iterable, Iterator, Optional, Union
 
 import plyvel
+from openleveldb.config import get_env, load_envs
 from openleveldb.connectorclient import LevelDBClient
 from openleveldb.connectorlocal import LevelDBLocal
 from openleveldb.server import dummy_server
 from tqdm import tqdm
-
-DUMMY_PORT = 9998
 
 
 class LevelDB:
@@ -23,7 +22,7 @@ class LevelDB:
         allow_multiprocessing: bool = False,
         dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
     ) -> None:
-
+        load_envs()
         self.db_path = db_path
         self.server_address = server_address
         self.allow_multiprocessing = allow_multiprocessing
@@ -34,9 +33,10 @@ class LevelDB:
         elif server_address is not None:
             self.dbconnector = LevelDBClient.get_instance(db_path, server_address)
         elif allow_multiprocessing:
-            self.bg_server = dummy_server(DUMMY_PORT)
+            self.bg_server = dummy_server(get_env("DUMMY_PORT"))
             self.dbconnector = LevelDBClient.get_instance(
-                db_path=db_path, server_address=f"http://127.0.0.1:{DUMMY_PORT}"
+                db_path=db_path,
+                server_address=f"{get_env('DUMMY_ADDRESS')}:{get_env('DUMMY_PORT')}",
             )
         else:
             self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
@@ -228,14 +228,14 @@ if __name__ == "__main__":
 
     db_path = "/home/luca/Scrivania/azz"
 
-    # print("Testing local LevelDB")
-    # db = LevelDB(db_path=db_path)
-    # test_db(db)
-    # db.close()
-    # sleep(0.25)
-
-    print("Testing REST LevelDB")
-    # db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
-    db = LevelDB(db_path=db_path, allow_multiprocessing=True)
+    print("Testing local LevelDB")
+    db = LevelDB(db_path=db_path)
     test_db(db)
     db.close()
+    sleep(0.25)
+
+    # print("Testing REST LevelDB")
+    # # db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
+    # db = LevelDB(db_path=db_path, allow_multiprocessing=True)
+    # test_db(db)
+    # db.close()

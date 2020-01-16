@@ -24,7 +24,7 @@ class LevelDBClient:
 
     @staticmethod
     def get_instance(
-        db_path: Union[str, Path], server_address: str = "http://127.0.0.1:5000",
+        db_path: Union[str, Path], server_address: str,
     ) -> "LevelDBClient":
         """
         Return a singleton instance of LevelDB for each path

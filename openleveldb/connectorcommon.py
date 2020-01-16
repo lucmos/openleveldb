@@ -11,10 +11,10 @@ class RandomUuidGenerator:
     Given the same seed, it will generate the same sequence.
     """
 
-    def __init__(self, seed):
+    def __init__(self, seed: int) -> None:
         self.rng = random.Random(seed)
 
-    def gen_uuid(self):
+    def gen_uuid(self) -> uuid.UUID:
         return uuid.UUID(
             bytes=bytes(self.rng.getrandbits(8) for _ in range(16)), version=4
         )

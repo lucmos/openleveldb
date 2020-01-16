@@ -170,7 +170,9 @@ def repr() -> str:
     return Response(dbrepr, content_type="text")
 
 
-def dummy_server(port: int) -> Process:
+def dummy_server(port: Union[int, str]) -> Process:
+    port = int(port)
+
     def runflask() -> None:
         sys.stdout = open(os.devnull, "w")
         app.run(port=port)
