@@ -24,10 +24,10 @@ def test_version() -> None:
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
 REMOTE_TEMP_DATABASE = tempfile.mkdtemp()
-REMOTE_PORT = 5000  # 9999
+REMOTE_PORT = 9999
 
 
-@pytest.fixture(scope="session", autouse=False)
+@pytest.fixture(scope="session", autouse=True)
 def dummy_server() -> None:
     def runflask() -> None:
         sys.stdout = open(os.devnull, "w")
@@ -95,78 +95,78 @@ class TestDatabase:
         ("prefixaa", 0),
     ]
 
-    @pytest.mark.parametrize(
-        argnames="keys,values", argvalues=[(keys1, values1,)],
-    )
-    def test_db_prefixed_iter(self, capsys, db: LevelDB, keys, values) -> None:
-        with capsys.disabled():
-            for k, v in zip(keys, values):
-                db[k] = v
-
-            assert (
-                repr([x for x in db.prefixed_iter(include_key=False)])
-                == "['sv1', 'sv3', 'sv4', 'sv2', 'sv5']"
-            )
-            assert (
-                repr([x for x in db.prefixed_iter(include_value=False)])
-                == "['prefixbk1', 'prefixbk2', 'prefixbk3', 'prefixck4', 'prefixck5']"
-            )
-            all_pairs = (
-                "[('prefixbk1', 'v1'), "
-                "('prefixbk2', 'v3'), "
-                "('prefixbk3', 'v4'), "
-                "('prefixck4', 'v2'), "
-                "('prefixck5', 'v5')]"
-            )
-            res_prefix_startingby = [
-                (
-                    "prefixb",
-                    "[('k1', 'v1'), ('k2', 'v3'), ('k3', 'v4')]",
-                    "[('prefixbk1', 'v1'), ('prefixbk2', 'v3'), ('prefixbk3', 'v4')]",
-                ),
-                (
-                    "prefixc",
-                    "[('k4', 'v2'), ('k5', 'v5')]",
-                    "[('prefixck4', 'v2'), ('prefixck5', 'v5')]",
-                ),
-                ("prefixa", "[]", "[]",),
-                ("prefixd", "[]", "[]",),
-                ("", all_pairs, all_pairs),
-            ]
-            assert repr([x for x in db]) == all_pairs
-
-            for key, res_prefix, res_startingby in res_prefix_startingby:
-
-                assert repr([x for x in db.prefixed_iter(prefixes=[key])]) == res_prefix
-                assert repr([x for x in db.prefixed_iter(prefixes=key)]) == res_prefix
-
-                assert (
-                    repr([x for x in db.prefixed_iter(starting_by=[key])])
-                    == res_startingby
-                )
-                assert (
-                    repr([x for x in db.prefixed_iter(starting_by=key)])
-                    == res_startingby
-                )
-
-            for x in keys:
-                del db[x]
-            assert len(db) == 0
-
-    @pytest.mark.parametrize(
-        argnames="keys,values", argvalues=[(keys1, values1,)],
-    )
-    def test_db_iter(self, db: LevelDB, keys, values) -> None:
-        for k, v in zip(keys, values):
-            db[k] = v
-
-        for (x, y), (xx, yy) in zip(db, (sorted(zip(keys, values), key=itemgetter(0)))):
-            assert db[x] == yy
-            assert db[xx] == y
-
-        for x in keys:
-            del db[x]
-        assert len(db) == 0
+    # @pytest.mark.parametrize(
+    #     argnames="keys,values", argvalues=[(keys1, values1,)],
+    # )
+    # def test_db_prefixed_iter(self, capsys, db: LevelDB, keys, values) -> None:
+    #     with capsys.disabled():
+    #         for k, v in zip(keys, values):
+    #             db[k] = v
+    #
+    #         assert (
+    #             repr([x for x in db.prefixed_iter(include_key=False)])
+    #             == "['sv1', 'sv3', 'sv4', 'sv2', 'sv5']"
+    #         )
+    #         assert (
+    #             repr([x for x in db.prefixed_iter(include_value=False)])
+    #             == "['prefixbk1', 'prefixbk2', 'prefixbk3', 'prefixck4', 'prefixck5']"
+    #         )
+    #         all_pairs = (
+    #             "[('prefixbk1', 'v1'), "
+    #             "('prefixbk2', 'v3'), "
+    #             "('prefixbk3', 'v4'), "
+    #             "('prefixck4', 'v2'), "
+    #             "('prefixck5', 'v5')]"
+    #         )
+    #         res_prefix_startingby = [
+    #             (
+    #                 "prefixb",
+    #                 "[('k1', 'v1'), ('k2', 'v3'), ('k3', 'v4')]",
+    #                 "[('prefixbk1', 'v1'), ('prefixbk2', 'v3'), ('prefixbk3', 'v4')]",
+    #             ),
+    #             (
+    #                 "prefixc",
+    #                 "[('k4', 'v2'), ('k5', 'v5')]",
+    #                 "[('prefixck4', 'v2'), ('prefixck5', 'v5')]",
+    #             ),
+    #             ("prefixa", "[]", "[]",),
+    #             ("prefixd", "[]", "[]",),
+    #             ("", all_pairs, all_pairs),
+    #         ]
+    #         assert repr([x for x in db]) == all_pairs
+    #
+    #         for key, res_prefix, res_startingby in res_prefix_startingby:
+    #
+    #             assert repr([x for x in db.prefixed_iter(prefixes=[key])]) == res_prefix
+    #             assert repr([x for x in db.prefixed_iter(prefixes=key)]) == res_prefix
+    #
+    #             assert (
+    #                 repr([x for x in db.prefixed_iter(starting_by=[key])])
+    #                 == res_startingby
+    #             )
+    #             assert (
+    #                 repr([x for x in db.prefixed_iter(starting_by=key)])
+    #                 == res_startingby
+    #             )
+    #
+    #         for x in keys:
+    #             del db[x]
+    #         assert len(db) == 0
+    #
+    # @pytest.mark.parametrize(
+    #     argnames="keys,values", argvalues=[(keys1, values1,)],
+    # )
+    # def test_db_iter(self, db: LevelDB, keys, values) -> None:
+    #     for k, v in zip(keys, values):
+    #         db[k] = v
+    #
+    #     for (x, y), (xx, yy) in zip(db, (sorted(zip(keys, values), key=itemgetter(0)))):
+    #         assert db[x] == yy
+    #         assert db[xx] == y
+    #
+    #     for x in keys:
+    #         del db[x]
+    #     assert len(db) == 0
 
     @pytest.mark.parametrize(
         argnames="keys,values,prefixeslens",
