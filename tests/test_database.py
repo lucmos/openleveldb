@@ -70,6 +70,31 @@ class TestDatabase:
         else:
             assert isinstance(db.dbconnector, LevelDBClient)
 
+    def test_db_operativity(self, db: LevelDB) -> None:
+        nu = 10
+
+        # writing
+        for x in range(nu):
+            key = f"{x}"
+            db[key] = np.random.rand(3, 10)
+        assert len(db) == nu
+
+        # reading
+        for x in range(nu):
+            key = f"{x}"
+            v = db[key]
+
+        # iterating
+        for x in db:
+            pass
+
+        # deleting
+        for x in range(nu):
+            key = f"{x}"
+            del db[key]
+
+        assert len(db) == 0
+
     keys1 = (
         ("prefixb", "k1"),
         ("prefixc", "k4"),
