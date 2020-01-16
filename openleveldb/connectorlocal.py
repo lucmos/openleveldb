@@ -3,9 +3,8 @@ Class that wraps the LevelDB plyvel to support dict-like behaviour, with automat
 deserialization from bytes provided by the serialization module
 """
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Optional, Type, Union
+from typing import Any, Callable, Iterable, Optional, Union
 
-import numpy as np
 import plyvel
 from openleveldb import serializer
 from openleveldb.connectorcommon import get_prefixed_db

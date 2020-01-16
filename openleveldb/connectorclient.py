@@ -115,7 +115,7 @@ class LevelDBClient:
         starting_by: Optional[str] = None,
     ) -> int:
         res = requests.get(
-            url=self.server_address + "/prefixed_dblen",
+            url=self.server_address + "/dblen",
             params={
                 "dbpath": self.db_path,
                 "prefixes": prefixes,
@@ -132,7 +132,8 @@ class LevelDBClient:
         :returns: number of elements in the database
         """
         res = requests.get(
-            url=self.server_address + "/dblen", params={"dbpath": self.db_path},
+            url=self.server_address + "/dblen",
+            params={"dbpath": self.db_path, "prefixes": None, "starting_by": None,},
         )
         return decode(res.content)
 
@@ -256,27 +257,4 @@ class LevelDBClient:
 
 
 if __name__ == "__main__":
-
-    db = LevelDBClient.get_instance(
-        db_path="azz", server_address="http://127.0.0.1:5000"
-    )
-
-    db["_", "_", ...] = "value_bytes1"
-
-    nu = 100
-    for x in tqdm(range(nu), desc="writing"):
-        key = f"{x}"
-        db[key] = np.random.rand(3, 1000)
-
-    for x in tqdm(range(nu), desc="reading"):
-        key = f"{x}"
-        v = db[key]
-    # db["ciaosdf"] = np.array([1, 2])
-    # a = db["ciaosdf"]
-    #
-    # testing = [
-    #     len(db),
-    #     db,
-    # ]
-    # for x in testing:
-    #     print(x)
+    pass

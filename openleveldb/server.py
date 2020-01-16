@@ -29,6 +29,17 @@ def get_db(dbpath: Union[str, Path]) -> plyvel.DB:
     return g.dbs[dbpath]
 
 
+def _parse_and_get_prefixed_db() -> plyvel.DB:
+    dbpath = request.args.get("dbpath")
+    prefixes = request.args.getlist("prefixes")
+    prefixes = (
+        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
+        if prefixes is not None
+        else ()
+    )
+    return get_prefixed_db(get_db(dbpath), prefixes)
+
+
 @app.teardown_appcontext
 def close_db(error) -> None:
     """Closes the database again at the end of the request."""
@@ -40,13 +51,8 @@ def close_db(error) -> None:
 
 @app.route("/iterator", methods=["GET"])
 def iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
-    dbpath = request.args.get("dbpath")
-    prefixes = request.args.getlist("prefixes")
-    prefixes = (
-        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-        if prefixes is not None
-        else ()
-    )
+    db = _parse_and_get_prefixed_db()
+
     starting_by = request.args.get("starting_by")
     starting_by = b"".join(
         serializer.normalize_strings(DecodeType.STR.pure_encode_fun, starting_by)
@@ -54,13 +60,9 @@ def iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
         else ()
     )
 
-    include_key = request.args.get("include_key")
-    include_value = request.args.get("include_value")
-    print(include_key)
-    conv = lambda x: True if x == "True" else False
-    include_key = conv(include_key)
-    include_value = conv(include_value)
-    db = get_prefixed_db(get_db(dbpath), prefixes)
+    include_key = request.args.get("include_key") == "True"
+    include_value = request.args.get("include_value") == "True"
+
     out = pickle.dumps(
         list(
             db.iterator(
@@ -71,22 +73,16 @@ def iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
     return Response(out, content_type="application/octet-stream")
 
 
-@app.route("/prefixed_dblen", methods=["GET"])
-def prefixed_dblen() -> str:
-    dbpath = request.args.get("dbpath")
-    prefixes = request.args.getlist("prefixes")
-    prefixes = (
-        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-        if prefixes is not None
-        else ()
-    )
+@app.route("/dblen", methods=["GET"])
+def dblen() -> str:
+    db = _parse_and_get_prefixed_db()
+
     starting_by = request.args.get("starting_by")
     starting_by = b"".join(
         serializer.normalize_strings(DecodeType.STR.pure_encode_fun, starting_by)
         if starting_by is not None
         else ()
     )
-    db = get_prefixed_db(get_db(dbpath), prefixes)
     out = serializer.encode(
         sum(
             1
@@ -98,28 +94,12 @@ def prefixed_dblen() -> str:
     return Response(out, content_type="application/octet-stream")
 
 
-@app.route("/dblen", methods=["GET"])
-def dblen() -> str:
-    dbpath = request.args.get("dbpath")
-
-    db = get_db(dbpath)
-    out = serializer.encode(
-        sum(1 for _ in db.iterator(include_key=True, include_value=False))
-    )
-
-    return Response(out, content_type="application/octet-stream")
-
-
 @app.route("/setitem", methods=["POST"])
 def setitem() -> Response:
-    dbpath = request.args.get("dbpath")
+    db = _parse_and_get_prefixed_db()
     key = request.args.get("key")
     value = request.get_data()
     keybytes = DecodeType.STR.pure_encode_fun(key)
-
-    prefixes = request.args.getlist("prefixes")
-    prefixes = serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-    db = get_prefixed_db(get_db(dbpath), prefixes)
 
     db.put(keybytes, value)
 
@@ -128,28 +108,19 @@ def setitem() -> Response:
 
 @app.route("/getitem", methods=["GET"])
 def getitem() -> Response:
-    dbpath = request.args.get("dbpath")
+    db = _parse_and_get_prefixed_db()
     key = request.args.get("key")
     keybytes = DecodeType.STR.pure_encode_fun(key)
-
-    prefixes = request.args.getlist("prefixes")
-    prefixes = serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-    db = get_prefixed_db(get_db(dbpath), prefixes)
-
     out = db.get(keybytes, default=b"")
     return Response(out, content_type="application/octet-stream")
 
 
 @app.route("/delitem", methods=["DELETE"])
 def delitem() -> (str, http.HTTPStatus):
-    dbpath = request.args.get("dbpath")
+    db = _parse_and_get_prefixed_db()
+
     key = request.args.get("key")
     keybytes = DecodeType.STR.pure_encode_fun(key)
-
-    prefixes = request.args.getlist("prefixes")
-    prefixes = serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-    db = get_prefixed_db(get_db(dbpath), prefixes)
-
     db.delete(keybytes)
 
     return Response(key, content_type="text")
@@ -157,13 +128,10 @@ def delitem() -> (str, http.HTTPStatus):
 
 @app.route("/repr", methods=["GET"])
 def repr() -> str:
+    db = _parse_and_get_prefixed_db()
+
     dbpath = request.args.get("dbpath")
     classname = request.args.get("classname")
-
-    prefixes = request.args.getlist("prefixes")
-    prefixes = serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
-    db = get_prefixed_db(get_db(dbpath), prefixes)
-
     innerdb = f"{db}"
 
     dbrepr = f"{classname}(path='{dbpath}', db={innerdb})"
@@ -183,8 +151,10 @@ def dummy_server(port: Union[int, str]) -> Process:
 
 
 if __name__ == "__main__":
-    import requests
-    import numpy as np
+    pass
+
+    # import requests
+    # import numpy as np
 
     # # # Get item
     # starting_by = None
