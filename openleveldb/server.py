@@ -170,8 +170,14 @@ def repr() -> str:
     return Response(dbrepr, content_type="text")
 
 
-def run(port: int) -> None:
-    app.run(port=port)
+def dummy_server(port: int) -> Process:
+    def runflask() -> None:
+        sys.stdout = open(os.devnull, "w")
+        app.run(port=port)
+
+    dummy_server = Process(target=runflask)
+    dummy_server.start()
+    return dummy_server
 
 
 if __name__ == "__main__":

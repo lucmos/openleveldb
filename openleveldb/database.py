@@ -1,11 +1,20 @@
+import atexit
+import os
+import sys
+from multiprocessing import Process
 from pathlib import Path
 from time import sleep
 from typing import Any, Iterable, Iterator, Optional, Union
 
+import openleveldb
 import plyvel
+from openleveldb import server
 from openleveldb.clientconnector import LevelDBClient
 from openleveldb.localconnector import LevelDBLocal
+from openleveldb.server import dummy_server
 from tqdm import tqdm
+
+DUMMY_PORT = 9998
 
 
 class LevelDB:
@@ -13,17 +22,24 @@ class LevelDB:
         self,
         db_path: Optional[Union[str, Path]],
         server_address: Optional[str] = None,
+        allow_multiprocessing: bool = False,
         dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
     ) -> None:
 
         self.db_path = db_path
         self.server_address = server_address
+        self.allow_multiprocessing = allow_multiprocessing
         self.dbconnector: Union[LevelDBClient, LevelDBLocal]
 
         if dbconnector is not None:
             self.dbconnector = dbconnector
         elif server_address is not None:
             self.dbconnector = LevelDBClient.get_instance(db_path, server_address)
+        elif allow_multiprocessing:
+            self.bg_server = dummy_server(DUMMY_PORT)
+            self.dbconnector = LevelDBClient.get_instance(
+                db_path=db_path, server_address=f"http://127.0.0.1:{DUMMY_PORT}"
+            )
         else:
             self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
 
@@ -177,6 +193,8 @@ class LevelDB:
 
     def close(self) -> None:
         self.dbconnector.close()
+        if hasattr(self, "bg_server"):
+            self.bg_server.kill()
 
 
 if __name__ == "__main__":
@@ -189,7 +207,7 @@ if __name__ == "__main__":
     # doctest.testmod(extraglobs={"tmpfile": tmpfile})
 
     def test_db(db):
-        nu = 100
+        nu = 10
         for x in tqdm(range(nu), desc="writing"):
             key = f"{x}"
             db[key] = np.random.rand(3, 1000)
@@ -211,13 +229,15 @@ if __name__ == "__main__":
         print()
 
     db_path = "/home/luca/Scrivania/azz"
-    print("Testing local LevelDB")
-    db = LevelDB(db_path=db_path)
-    test_db(db)
-    db.close()
-    sleep(0.25)
+
+    # print("Testing local LevelDB")
+    # db = LevelDB(db_path=db_path)
+    # test_db(db)
+    # db.close()
+    # sleep(0.25)
 
     print("Testing REST LevelDB")
-    db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
+    # db = LevelDB(db_path=db_path, server_address="http://127.0.0.1:5000")
+    db = LevelDB(db_path=db_path, allow_multiprocessing=True)
     test_db(db)
     db.close()
