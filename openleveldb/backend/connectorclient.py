@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterable, Optional, Union
 import requests
 
 from flask import Response
-from openleveldb.serializer import DecodeType, decode, encode, normalize_strings
+from openleveldb.backend.serializer import DecodeType, decode, encode, normalize_strings
 
 
 class LevelDBClient:

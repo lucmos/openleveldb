@@ -7,10 +7,9 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Union
 
 import plyvel
-from openleveldb import serializer
-from openleveldb.connectorcommon import get_prefixed_db
-from openleveldb.serializer import DecodeError, normalize_strings
-from plyvel._plyvel import PrefixedDB
+from openleveldb.backend import serializer
+from openleveldb.backend.connectorcommon import get_prefixed_db
+from openleveldb.backend.serializer import normalize_strings
 
 
 class LevelDBLocal:

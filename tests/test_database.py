@@ -1,21 +1,18 @@
-import os
-import sys
 import tempfile
-from multiprocessing import Process
 from operator import itemgetter
 from pathlib import Path
 
 import numpy as np
-import openleveldb.server
+import openleveldb.backend.server
 import orjson
 import plyvel
 import pytest
 from openleveldb import __version__
-from openleveldb.config import get_env, load_envs
-from openleveldb.connectorclient import LevelDBClient
-from openleveldb.connectorlocal import LevelDBLocal
+from openleveldb.backend.config import get_env, load_envs
+from openleveldb.backend.connectorclient import LevelDBClient
+from openleveldb.backend.connectorlocal import LevelDBLocal
+from openleveldb.backend.serializer import DecodeError, Serializer, encode
 from openleveldb.database import LevelDB
-from openleveldb.serializer import DecodeError, Serializer, encode
 
 
 def test_version() -> None:
@@ -32,7 +29,7 @@ TEST_SERVER_PORT = get_env("TEST_SERVER_PORT")
 
 @pytest.fixture(scope="session", autouse=True)
 def start_dummy_server() -> None:
-    p = openleveldb.server.dummy_server(TEST_SERVER_PORT)
+    p = openleveldb.backend.server.dummy_server(TEST_SERVER_PORT)
     yield None
     p.kill()
 

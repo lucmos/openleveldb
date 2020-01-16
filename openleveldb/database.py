@@ -5,9 +5,9 @@ In remote mode it allows access from multiple processes.
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional, Union
 
-from openleveldb.config import load_envs
-from openleveldb.connectorclient import LevelDBClient
-from openleveldb.connectorlocal import LevelDBLocal
+from openleveldb.backend.config import load_envs
+from openleveldb.backend.connectorclient import LevelDBClient
+from openleveldb.backend.connectorlocal import LevelDBLocal
 
 
 class LevelDB:

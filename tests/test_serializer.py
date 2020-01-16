@@ -1,9 +1,7 @@
 import base64
 
 import numpy as np
-import orjson
-import pytest
-from openleveldb.serializer import decode, encode
+from openleveldb.backend.serializer import decode, encode
 
 
 class TestSerializer:
