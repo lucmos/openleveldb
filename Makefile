@@ -10,7 +10,7 @@ server:
 	(export PYTHONPATH="${PYTHONPATH}:openleveldb/"; \
 	export FLASK_APP="openleveldb/server.py"; \
 	export FLASK_DEBUG=1; \
-	poetry run python -m flask run -h ${SERVER_ADDRESS} -p ${SERVER_PORT} )
+	poetry run python -m flask run -p ${SERVER_PORT} )
 
 ## Start demo
 demo:
