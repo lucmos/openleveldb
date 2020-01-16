@@ -59,16 +59,16 @@ def db(request) -> LevelDB:
     ldb.close()
 
 
-class TestPrint:
-    def test_1(self, capsys, db) -> None:
-        with capsys.disabled():
-            print(db)
-            # print(db.dbconnector)
-
-    def test_2(self, capsys, db) -> None:
-        with capsys.disabled():
-            print(db)
-            # print(db.dbconnector)
+# class TestPrint:
+#     def test_1(self, capsys, db) -> None:
+#         with capsys.disabled():
+#             print(db)
+#             # print(db.dbconnector)
+#
+#     def test_2(self, capsys, db) -> None:
+#         with capsys.disabled():
+#             print(db)
+#             # print(db.dbconnector)
 
 
 class TestDatabase:
