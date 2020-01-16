@@ -65,14 +65,15 @@ def prefixed_dblen() -> str:
         else ()
     )
     db = get_prefixed_db(get_db(dbpath), prefixes)
-    out = sum(
-        1
-        for _ in db.iterator(include_key=True, include_value=False, prefix=starting_by)
+    out = serializer.encode(
+        sum(
+            1
+            for _ in db.iterator(
+                include_key=True, include_value=False, prefix=starting_by
+            )
+        )
     )
-
-    response = make_response(serializer.encode(out))
-    response.headers.set("Content-Type", "application/octet-stream")
-    return response
+    return Response(out, content_type="application/octet-stream")
 
 
 @app.route("/dblen", methods=["GET"])
@@ -80,15 +81,15 @@ def dblen() -> str:
     dbpath = request.args.get("dbpath")
 
     db = get_db(dbpath)
-    out = sum(1 for _ in db.iterator(include_key=True, include_value=False))
+    out = serializer.encode(
+        sum(1 for _ in db.iterator(include_key=True, include_value=False))
+    )
 
-    response = make_response(serializer.encode(out))
-    response.headers.set("Content-Type", "application/octet-stream")
-    return response
+    return Response(out, content_type="application/octet-stream")
 
 
 @app.route("/setitem", methods=["POST"])
-def setitem() -> None:
+def setitem() -> Response:
     dbpath = request.args.get("dbpath")
     key = request.args.get("key")
     value = request.get_data()
@@ -100,9 +101,7 @@ def setitem() -> None:
 
     db.put(keybytes, value)
 
-    response = make_response(key)
-    response.headers.set("Content-Type", "application/octet-stream")
-    return response
+    return Response(key, content_type="text")
 
 
 @app.route("/getitem", methods=["GET"])
@@ -116,9 +115,7 @@ def getitem() -> Response:
     db = get_prefixed_db(get_db(dbpath), prefixes)
 
     out = db.get(keybytes, default=b"")
-    response = make_response(out)
-    response.headers.set("Content-Type", "application/octet-stream")
-    return response
+    return Response(out, content_type="application/octet-stream")
 
 
 @app.route("/delitem", methods=["DELETE"])
@@ -133,9 +130,7 @@ def delitem() -> (str, http.HTTPStatus):
 
     db.delete(keybytes)
 
-    response = make_response(key)
-    response.headers.set("Content-Type", "text")
-    return response
+    return Response(key, content_type="text")
 
 
 @app.route("/repr", methods=["GET"])
@@ -151,10 +146,7 @@ def repr() -> str:
     # if isinstance(db, PrefixedDB):
     #     innerdb = f"{innerdb[:-21]}>"
     dbrepr = f"{classname}(path='{dbpath}', db={innerdb})"
-
-    response = make_response(dbrepr)
-    response.headers.set("Content-Type", "text")
-    return response
+    return Response(dbrepr, content_type="text")
 
 
 def run(port: int) -> None:
