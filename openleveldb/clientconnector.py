@@ -62,8 +62,12 @@ class LevelDBClient:
         )
         return res.text
 
-    def __call__(
-        self, prefixes: bytes = None, starting_by: Optional[str] = None, **kwargs
+    def prefixed_iter(
+        self,
+        prefixes: Optional[Union[str, Iterable[str]]] = None,
+        starting_by: Optional[str] = None,
+        include_key=True,
+        include_value=True,
     ) -> Iterable:
         """
         Builds a custom iterator exploiting the parameters available in plyvel.DB
@@ -83,6 +87,21 @@ class LevelDBClient:
         """
         raise NotImplementedError
 
+    def prefixed_len(
+        self,
+        prefixes: Optional[Union[str, Iterable[str]]] = None,
+        starting_by: Optional[str] = None,
+    ) -> int:
+        res = requests.get(
+            url=self.server_address + "/prefixed_dblen",
+            params={
+                "dbpath": self.db_path,
+                "prefixes": prefixes,
+                "starting_by": starting_by,
+            },
+        )
+        return decode(res.content)
+
     def __len__(self) -> int:
         """
         Computes the number of element in the database.
@@ -90,7 +109,6 @@ class LevelDBClient:
 
         :returns: number of elements in the database
         """
-        # todo: fix the dblen of prefixed db!
         res = requests.get(
             url=self.server_address + "/dblen", params={"dbpath": self.db_path},
         )

@@ -30,8 +30,9 @@ class LevelDB:
     def prefixed_iter(
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
-        starting_by: Optional[str] = None,
-        **kwargs,
+        starting_by: Optional[Union[str, Iterable[str]]] = None,
+        include_key=True,
+        include_value=True,
     ) -> Iterable:
         """
         Builds a custom iterator exploiting the parameters available in plyvel.DB
@@ -42,7 +43,10 @@ class LevelDB:
         :returns: the custom iterable
         """
         return self.dbconnector.prefixed_iter(
-            prefixes=prefixes, starting_by=starting_by, **kwargs
+            prefixes=prefixes,
+            starting_by=starting_by,
+            include_key=include_key,
+            include_value=include_value,
         )
 
     def prefixed_len(

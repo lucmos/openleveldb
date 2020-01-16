@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 from multiprocessing import Process
+from operator import itemgetter
 from pathlib import Path
 from threading import Thread
 
@@ -23,10 +24,10 @@ def test_version() -> None:
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
 REMOTE_TEMP_DATABASE = tempfile.mkdtemp()
-REMOTE_PORT = 9999
+REMOTE_PORT = 5000  # 9999
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)
 def dummy_server() -> None:
     def runflask() -> None:
         sys.stdout = open(os.devnull, "w")
@@ -46,7 +47,7 @@ def dummy_server() -> None:
 @pytest.fixture(
     scope="function",
     params=[
-        # (LOCAL_TEMP_DATABASE, None),
+        (LOCAL_TEMP_DATABASE, None),
         (REMOTE_TEMP_DATABASE, f"http://127.0.0.1:{REMOTE_PORT}",),
     ],
 )
@@ -78,18 +79,12 @@ class TestDatabase:
 
     keys1 = (
         ("prefixb", "k1"),
+        ("prefixc", "k4"),
         ("prefixb", "k2"),
         ("prefixb", "k3"),
-        ("prefixc", "k4"),
         ("prefixc", "k5"),
     )
-    values1 = (
-        "v1",
-        "v2",
-        "v3",
-        "v4",
-        "v5",
-    )
+    values1 = ("v1", "v2", "v3", "v4", "v5")
     prefixeslens1 = [
         ("", 5),
         ("prefixb", 3),
@@ -101,30 +96,97 @@ class TestDatabase:
     ]
 
     @pytest.mark.parametrize(
+        argnames="keys,values", argvalues=[(keys1, values1,)],
+    )
+    def test_db_prefixed_iter(self, capsys, db: LevelDB, keys, values) -> None:
+        with capsys.disabled():
+            for k, v in zip(keys, values):
+                db[k] = v
+
+            assert (
+                repr([x for x in db.prefixed_iter(include_key=False)])
+                == "['sv1', 'sv3', 'sv4', 'sv2', 'sv5']"
+            )
+            assert (
+                repr([x for x in db.prefixed_iter(include_value=False)])
+                == "['prefixbk1', 'prefixbk2', 'prefixbk3', 'prefixck4', 'prefixck5']"
+            )
+            all_pairs = (
+                "[('prefixbk1', 'v1'), "
+                "('prefixbk2', 'v3'), "
+                "('prefixbk3', 'v4'), "
+                "('prefixck4', 'v2'), "
+                "('prefixck5', 'v5')]"
+            )
+            res_prefix_startingby = [
+                (
+                    "prefixb",
+                    "[('k1', 'v1'), ('k2', 'v3'), ('k3', 'v4')]",
+                    "[('prefixbk1', 'v1'), ('prefixbk2', 'v3'), ('prefixbk3', 'v4')]",
+                ),
+                (
+                    "prefixc",
+                    "[('k4', 'v2'), ('k5', 'v5')]",
+                    "[('prefixck4', 'v2'), ('prefixck5', 'v5')]",
+                ),
+                ("prefixa", "[]", "[]",),
+                ("prefixd", "[]", "[]",),
+                ("", all_pairs, all_pairs),
+            ]
+            assert repr([x for x in db]) == all_pairs
+
+            for key, res_prefix, res_startingby in res_prefix_startingby:
+
+                assert repr([x for x in db.prefixed_iter(prefixes=[key])]) == res_prefix
+                assert repr([x for x in db.prefixed_iter(prefixes=key)]) == res_prefix
+
+                assert (
+                    repr([x for x in db.prefixed_iter(starting_by=[key])])
+                    == res_startingby
+                )
+                assert (
+                    repr([x for x in db.prefixed_iter(starting_by=key)])
+                    == res_startingby
+                )
+
+            for x in keys:
+                del db[x]
+            assert len(db) == 0
+
+    @pytest.mark.parametrize(
+        argnames="keys,values", argvalues=[(keys1, values1,)],
+    )
+    def test_db_iter(self, db: LevelDB, keys, values) -> None:
+        for k, v in zip(keys, values):
+            db[k] = v
+
+        for (x, y), (xx, yy) in zip(db, (sorted(zip(keys, values), key=itemgetter(0)))):
+            assert db[x] == yy
+            assert db[xx] == y
+
+        for x in keys:
+            del db[x]
+        assert len(db) == 0
+
+    @pytest.mark.parametrize(
         argnames="keys,values,prefixeslens",
         argvalues=[(keys1, values1, prefixeslens1,)],
     )
     def test_db_prefixed_len(self, db: LevelDB, keys, values, prefixeslens) -> None:
-        try:
+        for k, v in zip(keys, values):
+            db[k] = v
 
-            for k, v in zip(keys, values):
-                db[k] = v
+        for k, v in zip(keys, values):
+            assert v == db[k]
 
-            for k, v in zip(keys, values):
-                assert v == db[k]
+        for prefixlen in prefixeslens:
+            prefix, plen = prefixlen
+            assert db.prefixed_len(prefix) == plen
 
-            for prefixlen in prefixeslens:
-                prefix, plen = prefixlen
-                assert db.prefixed_len(prefix) == plen
-
-            assert len(db) == len(keys) == len(values)
-
-            for x, y in db:
-                del db[x]
-            assert len(db) == 0
-        except:  # todo: togli quando implentato bene in client
-            for x in keys:
-                del db[x]
+        assert len(db) == len(keys) == len(values)
+        for x in keys:
+            del db[x]
+        assert len(db) == 0
 
     def test_db_repr(self, db: LevelDB) -> None:
         name = db.__class__.__name__

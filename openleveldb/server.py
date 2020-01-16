@@ -37,8 +37,8 @@ def close_db(error) -> None:
                 y.close()
 
 
-@app.route("/custom_iterator", methods=["GET"])
-def custom_iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
+@app.route("/prefixed_iterator", methods=["GET"])
+def prefixed_iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
     # todo: stream https://flask.palletsprojects.com/en/1.1.x/patterns/streaming/
     raise NotImplementedError
 
@@ -47,6 +47,32 @@ def custom_iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
 def iterator() -> Iterable[Union[bytes, Tuple[bytes, bytes]]]:
     # todo: stream https://flask.palletsprojects.com/en/1.1.x/patterns/streaming/
     raise NotImplementedError
+
+
+@app.route("/prefixed_dblen", methods=["GET"])
+def prefixed_dblen() -> str:
+    dbpath = request.args.get("dbpath")
+    prefixes = request.args.getlist("prefixes")
+    prefixes = (
+        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, prefixes)
+        if prefixes is not None
+        else ()
+    )
+    starting_by = request.args.get("starting_by")
+    starting_by = b"".join(
+        serializer.normalize_strings(DecodeType.STR.pure_encode_fun, starting_by)
+        if starting_by is not None
+        else ()
+    )
+    db = get_prefixed_db(get_db(dbpath), prefixes)
+    out = sum(
+        1
+        for _ in db.iterator(include_key=True, include_value=False, prefix=starting_by)
+    )
+
+    response = make_response(serializer.encode(out))
+    response.headers.set("Content-Type", "application/octet-stream")
+    return response
 
 
 @app.route("/dblen", methods=["GET"])

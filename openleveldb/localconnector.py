@@ -76,7 +76,7 @@ class LevelDBLocal:
         self.iter_prefixes: Optional[str, Iterable[str]] = None
         self.iter_starting_by: Optional[str] = None
 
-    def _prefixed_db(self, prefixes: Iterable[bytes]) -> "LevelDBLocal":
+    def prefixed_db(self, prefixes: Iterable[bytes]) -> "LevelDBLocal":
         """
         Apply all the prefixes (last one included) to obtain the desired prefixed database
 
@@ -93,7 +93,8 @@ class LevelDBLocal:
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
         starting_by: Optional[str] = None,
-        **kwargs,
+        include_key=True,
+        include_value=True,
     ) -> Iterable:
         """
         Builds a custom iterator exploiting the parameters available in plyvel.DB
@@ -108,8 +109,15 @@ class LevelDBLocal:
             if prefixes is not None
             else ()
         )
-        subdb = self._prefixed_db(prefixes=prefixes)
-        for x in subdb.db.iterator(prefix=starting_by, **kwargs):
+        starting_by = b"".join(
+            serializer.normalize_strings(self.key_encoder, starting_by)
+            if starting_by is not None
+            else ()
+        )
+        subdb = self.prefixed_db(prefixes=prefixes)
+        for x in subdb.db.iterator(
+            prefix=starting_by, include_key=include_key, include_value=include_value
+        ):
             if isinstance(x, bytes):
                 try:
                     yield self.key_decoder(x)
@@ -124,7 +132,6 @@ class LevelDBLocal:
         self,
         prefixes: Optional[Union[str, Iterable[str]]] = None,
         starting_by: Optional[str] = None,
-        **kwargs,
     ) -> int:
         return sum(
             1
@@ -133,7 +140,6 @@ class LevelDBLocal:
                 starting_by=starting_by,
                 include_key=True,
                 include_value=False,
-                **kwargs,
             )
         )
 
@@ -182,7 +188,7 @@ class LevelDBLocal:
         if key is Ellipsis:
             raise TypeError(f"str prefix or key expected, got {type(key).__name__}")
 
-        ldb = self._prefixed_db(prefixes)
+        ldb = self.prefixed_db(prefixes)
         ldb.db.put(key, self.value_encoder(value))
 
     def __getitem__(
@@ -222,7 +228,7 @@ class LevelDBLocal:
         :returns: the value associated to the key in leveldb, decoded by the serializer.
         """
         *prefixes, key = normalize_strings(self.key_encoder, key)
-        ldb = self._prefixed_db(prefixes)
+        ldb = self.prefixed_db(prefixes)
         if key is Ellipsis:
             return ldb
         return self.value_decoder(ldb.db.get(key))
@@ -245,7 +251,7 @@ class LevelDBLocal:
         :param key: string or iterable of string to specify prefixes, auto-encoded by the serializer.
         """
         *prefixes, key = normalize_strings(self.key_encoder, key)
-        ldb = self._prefixed_db(prefixes)
+        ldb = self.prefixed_db(prefixes)
         ldb.db.delete(key)
 
     def __repr__(self) -> str:
