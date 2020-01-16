@@ -23,9 +23,7 @@ def test_version() -> None:
 
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
-DUMMY_TEMP_DATABASE = tempfile.mkdtemp()
 REMOTE_TEMP_DATABASE = tempfile.mkdtemp()
-# LOCAL_TEMP_DATABASE = DUMMY_TEMP_DATABASE = REMOTE_TEMP_DATABASE
 
 load_envs()
 TEST_SERVER_ADDRESS = get_env("TEST_SERVER_ADDRESS")
@@ -42,19 +40,13 @@ def start_dummy_server() -> None:
 @pytest.fixture(
     scope="module",
     params=[
-        (LOCAL_TEMP_DATABASE, None, False),
-        (REMOTE_TEMP_DATABASE, f"{TEST_SERVER_ADDRESS}:{TEST_SERVER_PORT}", False),
-        (DUMMY_TEMP_DATABASE, None, True),
+        (LOCAL_TEMP_DATABASE, None),
+        (REMOTE_TEMP_DATABASE, f"{TEST_SERVER_ADDRESS}:{TEST_SERVER_PORT}"),
     ],
 )
 def db(request) -> LevelDB:
-    tempdbpath, address, allow_multiprocessing = request.param
-    ldb = LevelDB(
-        db_path=tempdbpath,
-        server_address=address,
-        allow_multiprocessing=allow_multiprocessing,
-        dbconnector=None,
-    )
+    tempdbpath, address = request.param
+    ldb = LevelDB(db_path=tempdbpath, server_address=address, dbconnector=None,)
     yield ldb
     ldb.close()
 
@@ -73,9 +65,7 @@ def db(request) -> LevelDB:
 
 class TestDatabase:
     def test_db_creation(self, db: LevelDB) -> None:
-        if db.allow_multiprocessing:
-            assert isinstance(db.dbconnector, LevelDBClient)
-        elif db.server_address is None:
+        if db.server_address is None:
             assert isinstance(db.dbconnector, LevelDBLocal)
         else:
             assert isinstance(db.dbconnector, LevelDBClient)

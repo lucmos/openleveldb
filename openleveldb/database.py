@@ -19,27 +19,30 @@ class LevelDB:
         self,
         db_path: Optional[Union[str, Path]],
         server_address: Optional[str] = None,
-        allow_multiprocessing: bool = False,
         dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
     ) -> None:
         load_envs()
         self.db_path = db_path
         self.server_address = server_address
-        self.allow_multiprocessing = allow_multiprocessing
         self.dbconnector: Union[LevelDBClient, LevelDBLocal]
 
         if dbconnector is not None:
             self.dbconnector = dbconnector
         elif server_address is not None:
             self.dbconnector = LevelDBClient.get_instance(db_path, server_address)
-        elif allow_multiprocessing:
-            self.bg_server = dummy_server(get_env("DUMMY_PORT"))
-            self.dbconnector = LevelDBClient.get_instance(
-                db_path=db_path,
-                server_address=f"{get_env('DUMMY_ADDRESS')}:{get_env('DUMMY_PORT')}",
-            )
         else:
             self.dbconnector = LevelDBLocal.get_instance(db_path=db_path)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, LevelDB):
+            return False
+        return (
+            self.db_path == other.db_path
+            and self.server_address == other.server_address
+        )
+
+    def __hash__(self) -> int:
+        return hash(self.db_path) ^ hash(self.server_address)
 
     def prefixed_iter(
         self,
@@ -237,11 +240,3 @@ if __name__ == "__main__":
     test_db(db)
     db.close()
     sleep(0.25)
-
-    db = LevelDB(db_path=db_path, allow_multiprocessing=True)
-    try:
-        print("Testing REST LevelDB", file=sys.stderr)
-        test_db(db)
-        db.close()
-    except BaseException:
-        db.close()
