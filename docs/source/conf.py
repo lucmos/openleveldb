@@ -12,18 +12,31 @@
 #
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("../.."))
+file_loc = Path(__file__).parent.parent.parent
+sys.path.insert(0, file_loc / "openleveldb")
 
+from openleveldb import *
 
 # -- Project information -----------------------------------------------------
+
+# project = openleveldb.__about__.__project__
+# author = openleveldb.__about__.__author__
+# copyright = u'Copyright 2020 - {0} {1}'.format(date.today().year, author)
+
+# # The short X.Y version
+# version = openleveldb.__about__.__version__
+# # The full version, including alpha/beta/rc tags
+# release = version
+
 
 project = "openleveldb"
 copyright = "2020, Luca Moschella"
 author = "Luca Moschella"
 
 # The full version, including alpha/beta/rc tags
-release = "0.0.1"
+release = "0.1.0"
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,9 +46,10 @@ release = "0.0.1"
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
     "sphinx.ext.viewcode",
-    # 'sphinxcontrib.napoleon',
-    "sphinx_rtd_theme",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -58,3 +72,16 @@ html_theme = "sphinx_rtd_theme"
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+
+# -- Extension configuration -------------------------------------------------
+
+# -- Options for todo extension ----------------------------------------------
+
+# If true, `todo` and `todoList` produce output, else they produce nothing.
+todo_include_todos = True
+
+
+# -- Options for autodoc
+autodoc_member_order = "bysource"
+autodoc_typehints = "description"

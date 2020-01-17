@@ -8,7 +8,7 @@ include system.env
 ## Start the flask server
 server:
 	(export PYTHONPATH="${PYTHONPATH}:openleveldb/"; \
-	export FLASK_APP="openleveldb/server.py"; \
+	export FLASK_APP="openleveldb/backend/server.py"; \
 	export FLASK_DEBUG=1; \
 	poetry run python -m flask run -p ${SERVER_PORT} )
 
