@@ -12,12 +12,9 @@
 #
 import os
 import sys
-from pathlib import Path
 
-file_loc = Path(__file__).parent.parent.parent
-sys.path.insert(0, file_loc / "openleveldb")
+sys.path.insert(0, os.path.abspath("../.."))
 
-from openleveldb import *
 
 # -- Project information -----------------------------------------------------
 
@@ -44,6 +41,7 @@ release = "0.1.0"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
+# autodoc_mock_imports = ["openlevedb", ...]
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
