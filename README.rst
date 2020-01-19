@@ -1,8 +1,7 @@
 ============================
 A pythonic leveldb wrapper
 ============================
-|docs|
-
+|pypi| |docs| |license| |black|
 
 .. inclusion-marker-do-not-remove
 
@@ -19,7 +18,7 @@ Transparent object store
 
 It works with python objects:
 
-- Automatically **encodes objects** into bytes saving to leveldb
+- Automatically **encodes objects** into bytes when saving to leveldb
 - Automatically **decodes bytes** into their original type when retrieving objects from leveldb
 
 Supported types include:
@@ -75,3 +74,15 @@ exposing the same API of a direct connection::
 .. |docs| image:: https://readthedocs.org/projects/openleveldb/badge/?version=latest
     :target: https://openleveldb.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+
+.. |license| image:: https://img.shields.io/pypi/l/openleveldb
+    :target: https://github.com/lucmos/openleveldb/blob/master/LICENSE
+    :alt: Openleveldb license
+    
+.. |pypi| image:: https://img.shields.io/pypi/v/openleveldb
+    :target: https://pypi.org/project/openleveldb/
+    :alt: Openleveldb repo
+
+.. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
+    :alt: Black syntax
