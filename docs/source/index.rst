@@ -1,23 +1,15 @@
-Welcome to openleveldb's documentation!
-=======================================
+============================
+Openleveldb
+============================
 
-LevelDB
-=======
-
-
-.. autoclass:: openleveldb.database.LevelDB
-    :members:
-    :special-members:
+.. include:: ../../README.rst
+  :start-after: inclusion-marker-do-not-remove
 
 .. toctree::
+    :hidden:
     :maxdepth: 2
-    :caption: Contents:
 
+    installation
+    user
+    api
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
