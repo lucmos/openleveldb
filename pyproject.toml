@@ -4,6 +4,16 @@ version = "0.1.0"
 description = ""
 authors = ["Luca Moschella <luca.moschella94@gmail.com>"]
 
+license = "MIT"
+
+readme = "README.rst"
+
+repository = "https://github.com/lucmos/openleveldb"
+documentation = "https://openleveldb.readthedocs.io/en/latest/index.html#"
+
+keywords = ["leveldb", "multiprocessing"]
+
+
 [tool.poetry.dependencies]
 python = "^3.7.5"
 plyvel = "^1.1.0"
