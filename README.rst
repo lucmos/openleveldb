@@ -75,7 +75,7 @@ exposing the same API of a direct connection::
     :target: https://openleveldb.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-.. |license| image:: https://img.shields.io/pypi/l/openleveldb
+.. |license| image:: https://img.shields.io/github/license/lucmos/openleveldb
     :target: https://github.com/lucmos/openleveldb/blob/master/LICENSE
     :alt: Openleveldb license
     
