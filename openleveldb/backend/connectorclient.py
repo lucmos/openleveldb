@@ -137,7 +137,7 @@ class LevelDBClient:
             params={"dbpath": self.db_path, "key": key, "prefixes": prefixes},
         )
 
-        return self.value_decoder(res.content)
+        return self.value_decoder(res.content) if res.content else None
 
     def __delitem__(self, key: Union[str, Iterable[str]]) -> Response:
         *prefixes, key = normalize_strings(lambda x: x, key)

@@ -1,3 +1,4 @@
+import io
 import tempfile
 from operator import itemgetter
 from pathlib import Path
@@ -21,13 +22,18 @@ def test_version() -> None:
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
 REMOTE_TEMP_DATABASE = tempfile.mkdtemp()
+LOCAL_READONLY_TEMP_DATABASE = tempfile.mkdtemp()
+REMOTE_READONLY_TEMP_DATABASE = tempfile.mkdtemp()
 
 load_envs()
 TEST_SERVER_ADDRESS = get_env("TEST_SERVER_ADDRESS")
 TEST_SERVER_PORT = get_env("TEST_SERVER_PORT")
+TEST_READONLY_SERVER_PORT = get_env("TEST_READONLY_SERVER_PORT")
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(
+    scope="session", autouse=True,
+)
 def start_dummy_server() -> None:
     p = openleveldb.backend.server.dummy_server(TEST_SERVER_PORT)
     yield None
@@ -35,15 +41,35 @@ def start_dummy_server() -> None:
 
 
 @pytest.fixture(
+    scope="session", autouse=True,
+)
+def start_dummy_read_only_server() -> None:
+    p = openleveldb.backend.server.dummy_server(TEST_READONLY_SERVER_PORT)
+    yield None
+    p.kill()
+
+
+@pytest.fixture(
     scope="module",
     params=[
-        (LOCAL_TEMP_DATABASE, None),
-        (REMOTE_TEMP_DATABASE, f"{TEST_SERVER_ADDRESS}:{TEST_SERVER_PORT}"),
+        (LOCAL_TEMP_DATABASE, None, False),
+        (LOCAL_READONLY_TEMP_DATABASE, None, True),
+        (REMOTE_TEMP_DATABASE, f"{TEST_SERVER_ADDRESS}:{TEST_SERVER_PORT}", False),
+        (
+            REMOTE_READONLY_TEMP_DATABASE,
+            f"{TEST_SERVER_ADDRESS}:{TEST_READONLY_SERVER_PORT}",
+            True,
+        ),
     ],
 )
 def db(request) -> LevelDB:
-    tempdbpath, address = request.param
-    ldb = LevelDB(db_path=tempdbpath, server_address=address, dbconnector=None,)
+    tempdbpath, address, read_only = request.param
+    ldb = LevelDB(
+        db_path=tempdbpath,
+        server_address=address,
+        dbconnector=None,
+        read_only=read_only,
+    )
     yield ldb
     ldb.close()
 
@@ -61,6 +87,32 @@ def db(request) -> LevelDB:
 
 
 class TestDatabase:
+    def test_db_readonly(self, db: LevelDB) -> None:
+        def _write(db):
+            db["key"] = 0
+
+        def _read(db):
+            return db["key"]
+
+        def _del(db):
+            del db["key"]
+
+        if db.read_only:
+            with pytest.raises(
+                io.UnsupportedOperation, match="not writable"
+            ) as execinfo:
+                _write(db)
+            _read(db)
+            with pytest.raises(
+                io.UnsupportedOperation, match="not writable"
+            ) as execinfo:
+                _del(db)
+        else:
+            _write(db)
+            _read(db)
+            _del(db)
+        assert len(db) == 0
+
     def test_db_creation(self, db: LevelDB) -> None:
         if db.server_address is None:
             assert isinstance(db.dbconnector, LevelDBLocal)
@@ -68,6 +120,8 @@ class TestDatabase:
             assert isinstance(db.dbconnector, LevelDBClient)
 
     def test_db_operativity(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         nu = 10
 
         # writing
@@ -114,6 +168,9 @@ class TestDatabase:
         argnames="keys,values", argvalues=[(keys1, values1,)],
     )
     def test_db_prefixed_iter(self, db: LevelDB, keys, values) -> None:
+        if db.read_only:
+            return
+
         for k, v in zip(keys, values):
             db[k] = v
 
@@ -169,6 +226,9 @@ class TestDatabase:
         argnames="keys,values", argvalues=[(keys1, values1,)],
     )
     def test_db_iter(self, db: LevelDB, keys, values) -> None:
+        if db.read_only:
+            return
+
         for k, v in zip(keys, values):
             db[k] = v
 
@@ -185,6 +245,9 @@ class TestDatabase:
         argvalues=[(keys1, values1, prefixeslens1,)],
     )
     def test_db_prefixed_len(self, db: LevelDB, keys, values, prefixeslens) -> None:
+        if db.read_only:
+            return
+
         for k, v in zip(keys, values):
             db[k] = v
 
@@ -208,6 +271,8 @@ class TestDatabase:
         assert repr(db)[: len(out)] == out
 
     def test_base_retrieval(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         db["key"] = "value_string1"
         assert db["key"] == "value_string1"
         del db["key"]
@@ -218,6 +283,8 @@ class TestDatabase:
         assert len(db) == 0
 
     def test_json_serialization(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         a = {"key1": 10.5, "key2": [1, 2, {"key3": -1}]}
         db["key"] = a
         assert db["key"] == a
@@ -237,6 +304,8 @@ class TestDatabase:
         assert len(db) == 0
 
     def test_numpy_serialization(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], dtype=np.float16)
         db["key"] = a
         assert repr(db["key"]) == repr(a)
@@ -256,6 +325,8 @@ class TestDatabase:
         assert len(db) == 0
 
     def test_int_serialization(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         for a in [42, -100000000000000000000000000, int(1e10)]:
             db["key"] = a
             assert db["key"] == a
@@ -273,6 +344,8 @@ class TestDatabase:
             assert len(db) == 0
 
     def test_str_serialization(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         a = "just testing some conversions... :)"
 
         db["key"] = a
@@ -290,6 +363,8 @@ class TestDatabase:
         assert len(db) == 0
 
     def test_prefix_consistency(self, db: LevelDB) -> None:
+        if db.read_only:
+            return
         db["prefix1", "prefix2", "prefix2", "key_string2"] = "value_string2"
         assert (
             db["prefix1prefix2prefix2key_string2"]
@@ -308,6 +383,8 @@ class TestDatabase:
 
     @pytest.mark.parametrize("key,", [b"key", 0, 354.342, None, ...])
     def test_key_str_type(self, db: LevelDB, key) -> None:
+        if db.read_only:
+            return
         with pytest.raises(
             TypeError, match=f"str prefix or key expected, got {type(key).__name__}",
         ) as execinfo:
@@ -352,6 +429,8 @@ class TestDatabase:
             assert isinstance(subdb.dbconnector.db, plyvel._plyvel.PrefixedDB)
 
     def test_regression_prefix_iterator(self, db: LevelDB):
+        if db.read_only:
+            return
         # wrong detection of what the prefixed iter should return
         db["key"] = "value"
         assert list(db.prefixed_iter(include_key=False, include_value=False))[0] is None
@@ -359,6 +438,12 @@ class TestDatabase:
         assert list(db.prefixed_iter(include_key=False, include_value=True)) == [
             "value"
         ]
+        del db["key"]
+        assert len(db) == 0
+
+    def test_regression_none(self, db: LevelDB):
+        if db["key"] is not None:
+            raise RuntimeError(f'{db["key"]}')
 
     keysvalues2 = [
         (["a", "0", "key"], 0.42),
@@ -380,6 +465,8 @@ class TestDatabase:
         argnames="keysvalues2", argvalues=[keysvalues2],
     )
     def test_db_fancystore(self, db: LevelDB, keysvalues2) -> None:
+        if db.read_only:
+            return
         for k, v in keysvalues2:
             db[k] = v
 

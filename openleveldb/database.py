@@ -2,6 +2,7 @@
 Provides a pythonic dict-like interface to local or remote leveldb.
 In remote mode it allows access from multiple processes.
 """
+import io
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional, Union
 
@@ -15,6 +16,7 @@ class LevelDB:
         db_path: Optional[Union[str, Path]],
         server_address: Optional[str] = None,
         dbconnector: Optional[Union[LevelDBLocal, LevelDBClient]] = None,
+        read_only: bool = False,
     ) -> None:
         """
         Provide access to a leveldb database, it if does not exists one is created.
@@ -31,11 +33,13 @@ class LevelDB:
 
         :param db_path: the path in the filesystem to the database
         :param server_address: the address of the remote server
+        :param read_only: if true the db can not be modified
         :param dbconnector: provide directly an existing dbconnector
         """
         self.db_path = db_path
         self.server_address = server_address
         self.dbconnector: Union[LevelDBClient, LevelDBLocal]
+        self.read_only: bool = read_only
 
         if dbconnector is not None:
             self.dbconnector = dbconnector
@@ -178,6 +182,8 @@ class LevelDB:
         :param key: one or more strings to specify prefixes
         :returns: the value associated to the key in leveldb
         """
+        if self.read_only:
+            raise io.UnsupportedOperation("not writable")
         self.dbconnector[key] = value
 
     def __getitem__(
@@ -233,6 +239,7 @@ class LevelDB:
                 db_path=self.db_path,
                 server_address=self.server_address,
                 dbconnector=out,
+                read_only=self.read_only,
             )
         )
 
@@ -257,6 +264,8 @@ class LevelDB:
 
         :param key: one or more strings to specify prefixes.
         """
+        if self.read_only:
+            raise io.UnsupportedOperation("not writable")
         del self.dbconnector[key]
 
     def __repr__(self) -> str:

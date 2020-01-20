@@ -134,7 +134,8 @@ class LevelDBLocal:
         ldb = self.prefixed_db(prefixes)
         if key is Ellipsis:
             return ldb
-        return self.value_decoder(ldb.db.get(key))
+        out = ldb.db.get(key)
+        return self.value_decoder(out) if out else None
 
     def __delitem__(self, key: Union[str, Iterable[str]]) -> None:
         *prefixes, key = normalize_strings(self.key_encoder, key)
