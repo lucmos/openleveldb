@@ -17,7 +17,7 @@ from openleveldb.database import LevelDB
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.1"
+    assert __version__ == "0.1.2"
 
 
 LOCAL_TEMP_DATABASE = tempfile.mkdtemp()
