@@ -40,7 +40,7 @@ Then it's possible to instantiate a ``LevelDB`` object specifying the server::
 Basic access
 ============
 
-Storing, reading and deleting an element follows the dict protocol:
+Storing, reading and deleting an element follow the dict protocol:
 
     >>> db["prefix", "key"] = np.array([1, 2, 3], dtype=np.int8)
     >>> db["prefix", "key"]

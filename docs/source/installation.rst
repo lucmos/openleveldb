@@ -15,11 +15,12 @@ or with pip::
 Verify installation
 ===================
 
-To verify that the installation as been successful and ``plyvel`` correctly installed leveldb it is possible to run::
+Verify that the installation has been successful and that ``plyvel`` correctly installed leveldb,
+if it is not already installed on the system::
 
     python -c 'import openleveldb'
 
-To verify that ``openleveldb`` behaves as expected it is possible to run the tests
+Verify that ``openleveldb`` using the tests
 
 .. code:: bash
 
