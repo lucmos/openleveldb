@@ -12,6 +12,7 @@ from typing import Any, Callable, Iterable, Union
 
 import numpy as np
 import orjson
+import rapidjson
 
 
 class Serializer:
@@ -161,8 +162,8 @@ class DecodeType(Enum):
     )
     JSON = (
         b"j",
-        orjson.dumps,
-        orjson.loads,
+        lambda x: str.encode(rapidjson.dumps(x), encoding="utf-8"),
+        lambda x: rapidjson.loads(bytes.decode(x, encoding="utf-8")),
     )
     NUMPY = (
         b"n",

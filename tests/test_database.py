@@ -8,6 +8,7 @@ import openleveldb.backend.server
 import orjson
 import plyvel
 import pytest
+import rapidjson
 from openleveldb import __version__
 from openleveldb.backend.config import get_env, load_envs
 from openleveldb.backend.connectorclient import LevelDBClient
@@ -290,7 +291,7 @@ class TestDatabase:
         assert db["key"] == a
         assert a == db["key"]
 
-        db["key"] = orjson.dumps(a)
+        db["key"] = str.encode(rapidjson.dumps(a), encoding="utf-8")
 
         with pytest.raises(
             DecodeError, match="missing DecodeType identifier in bytes blob",
