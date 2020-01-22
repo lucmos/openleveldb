@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 import openleveldb.backend.server
-import orjson
 import plyvel
 import pytest
 import rapidjson
@@ -13,7 +12,7 @@ from openleveldb import __version__
 from openleveldb.backend.config import get_env, load_envs
 from openleveldb.backend.connectorclient import LevelDBClient
 from openleveldb.backend.connectorlocal import LevelDBLocal
-from openleveldb.backend.serializer import DecodeError, Serializer, encode
+from openleveldb.backend.serializer import DecodeError, Serializer, decode, encode
 from openleveldb.database import LevelDB
 
 
@@ -292,14 +291,10 @@ class TestDatabase:
         assert a == db["key"]
 
         db["key"] = str.encode(rapidjson.dumps(a), encoding="utf-8")
-
-        with pytest.raises(
-            DecodeError, match="missing DecodeType identifier in bytes blob",
-        ) as execinfo:
-            value = db["key"]
+        assert db["key"] == str.encode(rapidjson.dumps(a), encoding="utf-8")
 
         db["key"] = encode(a)
-        assert db["key"] == a
+        assert db["key"] == encode(a)
 
         del db["key"]
         assert len(db) == 0
@@ -313,14 +308,11 @@ class TestDatabase:
         assert np.array_equal(a, db["key"])
 
         db["key"] = Serializer.ndarray_tobytes(a)
-        with pytest.raises(
-            DecodeError, match="missing DecodeType identifier in bytes blob",
-        ) as execinfo:
-            value = db["key"]
+        assert db["key"] == Serializer.ndarray_tobytes(a)
 
         db["key"] = encode(a)
-        assert repr(db["key"]) == repr(a)
-        assert np.array_equal(a, db["key"])
+        assert repr(decode(db["key"])) == repr(a)
+        assert np.array_equal(a, decode(db["key"]))
 
         del db["key"]
         assert len(db) == 0
@@ -333,13 +325,10 @@ class TestDatabase:
             assert db["key"] == a
 
             db["key"] = int.to_bytes(a, length=16, byteorder="big", signed=True)
-            with pytest.raises(
-                DecodeError, match="missing DecodeType identifier in bytes blob",
-            ) as execinfo:
-                value = db["key"]
+            assert db["key"] == int.to_bytes(a, length=16, byteorder="big", signed=True)
 
             db["key"] = encode(a)
-            assert db["key"] == a
+            assert db["key"] == encode(a)
 
             del db["key"]
             assert len(db) == 0
@@ -353,13 +342,10 @@ class TestDatabase:
         assert a == db["key"]
 
         db["key"] = b"value_bytes1"
-        with pytest.raises(
-            DecodeError, match="missing DecodeType identifier in bytes blob",
-        ) as execinfo:
-            value = db["key"]
+        assert db["key"] == b"value_bytes1"
 
         db["key"] = encode(a)
-        assert db["key"] == a
+        assert db["key"] == encode(a)
         del db["key"]
         assert len(db) == 0
 

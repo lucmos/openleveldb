@@ -11,7 +11,6 @@ from io import BytesIO
 from typing import Any, Callable, Iterable, Union
 
 import numpy as np
-import orjson
 import rapidjson
 
 
@@ -116,8 +115,7 @@ class DecodeType(Enum):
             raise TypeError(f"unsupported {len(id)}-byte identifier '{id}'")
 
         obj = object.__new__(cls)
-        obj._value_ = id
-        obj.identifier = id
+        obj._value_ = obj.identifier = id
         obj.pure_encode_fun = encode_fun
         obj.pure_decode_fun = decode_fun
         return obj
@@ -150,6 +148,7 @@ class DecodeType(Enum):
         except ValueError as ex:
             raise DecodeError(f"missing DecodeType identifier in bytes blob") from ex
 
+    BYTES = (b"b", lambda x: x, lambda x: x)
     INT = (
         b"i",
         functools.partial(int.to_bytes, length=16, byteorder="big", signed=True),
@@ -189,7 +188,7 @@ def encode(obj: Any) -> bytes:
 
 @encode.register
 def _(obj: bytes) -> bytes:
-    return obj
+    return DecodeType.BYTES.encode(obj)
 
 
 @encode.register
