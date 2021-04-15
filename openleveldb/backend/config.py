@@ -1,9 +1,10 @@
 import os
+from typing import Optional
 
 import dotenv
 
 
-def load_envs(env_file: str = "system.env") -> None:
+def load_envs(env_file: Optional[str] = None) -> None:
     """
     Load all the environment variables defined in the `env_file`.
     This is equivalent to `. env_file` in bash.
@@ -12,8 +13,6 @@ def load_envs(env_file: str = "system.env") -> None:
 
     :param env_file: the file that defines the environment variables to use
     """
-    if not os.path.isfile(env_file):
-        raise FileNotFoundError(f"no such config file: {env_file}")
     dotenv.load_dotenv(dotenv_path=env_file, override=True)
 
 
